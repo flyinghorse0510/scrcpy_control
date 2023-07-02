@@ -36,9 +36,17 @@ int main()
     int cmd = 0;
     int x = 0, y = 0, endX = 0, endY = 0;
     begin_session();
-    int bx = 423, by = 1338;
-    int ex = 392, ey = 2121;
-    long_press_move_finger(bx, by, ex, ey, 1500, 1000);
+    // int bx = 402, by = 2132;
+    // int ex = 425, ey = 1317;
+    // long_press_move_finger(bx, by, ex, ey, 3000, 0);
+    // for (int i = 0; i < 40; i++) {
+    //     long_click_screen(550, 1651, 0);
+    //     usleep(200000);
+    // }
+    // long_click_screen(410, 2143, 0);
+    long_click_screen(1995, 577, 0);
+    usleep(1000000);
+    long_click_screen(992, 300, 0);
     end_session();
     return 0;
 }
