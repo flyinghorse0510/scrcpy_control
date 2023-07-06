@@ -264,6 +264,8 @@ def process_frame(gameScreen: Image.Image) -> bool:
                     currentState = FREE_STATE
                     totalGameCount += 1
                     print("Dragon Bet: %d\nEqual Bet: %d\nTiger Bet: %d\nWinner: %s" %(currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner]))
+                    recordFile.write("%d,%d,%d,%d,%s\n" %(totalGameCount+1, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner]))
+                    recordFile.flush()
                     clean_game()
                 break
         else:
@@ -288,6 +290,11 @@ def process_frame(gameScreen: Image.Image) -> bool:
 # print(get_bet(gameScreen))
 # print("Winner")
 # print(get_winner(gameScreen))
+
+recordFile = open("record.csv", "w", encoding='utf-8-sig')
+recordFile.write("局数,龙,和,虎,赢\n")
+recordFile.flush()
+
 totalFrame = 0
 cap = cv2.VideoCapture("./tiger_video/test.mp4")
 if not cap.isOpened():
