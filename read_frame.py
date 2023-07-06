@@ -1,5 +1,6 @@
 from PIL import Image, ImageOps
 import cv2
+import numpy as np
 from tesserocr import PyTessBaseAPI, PSM
 from tesserocr import get_languages
 tessPSM = PSM.SINGLE_LINE
@@ -14,6 +15,7 @@ LeftTime1Area = (1268, 320, 1310, 386)
 LeftTime0Area = (1316, 320, 1358, 386)
 DragonWinArea = (900, 718, 1068, 790)
 TigerWinArea = (1356, 718, 1524, 790)
+YelloFilter = [(20, 43, 46), (34, 255, 255)]
 
 WINNER_ARRAY = ["龙","和","虎"]
 
@@ -78,6 +80,20 @@ def txt2int(txt: str) -> int:
         number = -1
     
     return number
+
+def is_chinese(txt: str) -> bool:
+    for i in range(len(txt)):
+        if txt[i] < '\u4e00' or txt[i] > '\u9fa5':
+            return False
+    return True
+
+def is_yello_activated(img: Image.Image) -> bool:
+    cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)
+    filteredImg = cv2.inRange(cvImg, YelloFilter[0], YelloFilter[1])
+    yelloWeight = filteredImg.sum() / (255.0 * filteredImg.size)
+    if yelloWeight >= 0.20:
+        return True
+    return False
 
 def pureTxt2int(txt: str) -> int:
     if len(txt) == 0:
@@ -157,14 +173,14 @@ def get_left_time(gameScreen: Image.Image) -> int:
     
 def get_winner(gameScreen: Image.Image) -> int:
     dragonWinImg = gameScreen.crop(DragonWinArea)
-    dragonWinTxt = recognize_chinese(dragonWinImg)
     tigerWinImg = gameScreen.crop(TigerWinArea)
-    tigerWinTxt = recognize_chinese(tigerWinImg)
-    if dragonWinTxt == "利不" or tigerWinTxt == "初雪":
+    dragonActivated = is_yello_activated(dragonWinImg)
+    tigerActivated = is_yello_activated(tigerWinImg)
+    if dragonActivated and tigerActivated:
         return EQUAL_WIN
-    elif dragonWinTxt == "伟下":
+    elif dragonActivated:
         return DRAGON_WIN
-    elif tigerWinTxt == "虚两":
+    elif tigerActivated:
         return TIGER_WIN
     return NONE_WIN
 
@@ -187,7 +203,7 @@ def clean_game():
     currentBet = 0
     currentBetChoice = DRAGON_BET
     
-def process_frame(gameScreen: Image.Image) -> bool:
+def process_frame(originalGameScreen: Image.Image) -> bool:
     global totalGameCount
     global currentWaitFrame
     global currentLeftTime
@@ -196,8 +212,9 @@ def process_frame(gameScreen: Image.Image) -> bool:
     global currentEqualBet
     global currentTigerBet
     
-    statusId = get_status(gameScreen)
-    leftTime = get_left_time(gameScreen)
+    binarizedGameScreen = binarizePillow(originalGameScreen, 156)
+    statusId = get_status(binarizedGameScreen)
+    leftTime = get_left_time(binarizedGameScreen)
     currentLeftTime = currentLeftTime if leftTime == -1 else leftTime
     
     
@@ -221,7 +238,7 @@ def process_frame(gameScreen: Image.Image) -> bool:
                 print("Begin Bet")
                 continue
             else:
-                currentBet = get_bet(gameScreen)
+                currentBet = get_bet(binarizedGameScreen)
                 currentDragonBet = currentDragonBet if currentBet[0] == -1 else currentBet[0]
                 currentEqualBet = currentEqualBet if currentBet[1] == -1 else currentBet[1]
                 currentTigerBet = currentTigerBet if currentBet[2] == -1 else currentBet[2]
@@ -232,7 +249,7 @@ def process_frame(gameScreen: Image.Image) -> bool:
                 print("Stop Bet")
                 continue
             else:
-                currentBet = get_bet(gameScreen)
+                currentBet = get_bet(binarizedGameScreen)
                 currentDragonBet = currentDragonBet if currentBet[0] == -1 else currentBet[0]
                 currentEqualBet = currentEqualBet if currentBet[1] == -1 else currentBet[1]
                 currentTigerBet = currentTigerBet if currentBet[2] == -1 else currentBet[2]
@@ -247,7 +264,7 @@ def process_frame(gameScreen: Image.Image) -> bool:
                 print("Wait Result")
                 break
             else:
-                currentBet = get_bet(gameScreen)
+                currentBet = get_bet(binarizedGameScreen)
                 currentDragonBet = currentDragonBet if currentBet[0] == -1 else currentBet[0]
                 currentEqualBet = currentEqualBet if currentBet[1] == -1 else currentBet[1]
                 currentTigerBet = currentTigerBet if currentBet[2] == -1 else currentBet[2]
@@ -258,13 +275,13 @@ def process_frame(gameScreen: Image.Image) -> bool:
                 print("******** Miss Result ********")
                 break
             else:
-                winner = get_winner(gameScreen)
+                winner = get_winner(originalGameScreen)
                 if winner != NONE_WIN:
                     print("Result Received!")
                     currentState = FREE_STATE
                     totalGameCount += 1
                     print("Dragon Bet: %d\nEqual Bet: %d\nTiger Bet: %d\nWinner: %s" %(currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner]))
-                    recordFile.write("%d,%d,%d,%d,%s\n" %(totalGameCount+1, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner]))
+                    recordFile.write("%d,%d,%d,%d,%s\n" %(totalGameCount, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner]))
                     recordFile.flush()
                     clean_game()
                 break
@@ -274,10 +291,11 @@ def process_frame(gameScreen: Image.Image) -> bool:
     return True 
 
 
-# gameScreen = Image.open("./tiger_video/test2_equal_win.jpg")
+# gameScreen = Image.open("./tiger_video/test2_dragon_win.jpg")
+# print(get_winner(gameScreen))
 # gameScreen = binarizePillow(gameScreen, 156)
 # gameScreen.save("gameScreen.png")
-# print(get_winner(gameScreen))
+
 
 
 # statusId = get_status(gameScreen)
@@ -296,7 +314,7 @@ recordFile.write("局数,龙,和,虎,赢\n")
 recordFile.flush()
 
 totalFrame = 0
-cap = cv2.VideoCapture("./tiger_video/test.mp4")
+cap = cv2.VideoCapture("./tiger_video/record.mkv")
 if not cap.isOpened():
     print("Fatal error! Open Video file failed!\n")
     chineseApi.End()
@@ -306,7 +324,6 @@ while cap.isOpened():
     ret, frame = cap.read()
     if ret == True:
         gameScreen = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        gameScreen = binarizePillow(gameScreen, 156)
         process_frame(gameScreen)
         totalFrame += 1
         # if totalFrame % 300 == 0:
