@@ -1,3 +1,5 @@
 .vscode
 control
 tiger_video
+*.so
+*.mp4

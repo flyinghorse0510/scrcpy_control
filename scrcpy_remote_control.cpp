@@ -1,16 +1,18 @@
 
+using namespace std;
 #include <assert.h>
 #include <SDL2/SDL_keycode.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <math.h>
-#include <time.h>
-#include "scrcpy_remote_control.h"
+#include <cmath>
+#include <ctime>
+#include "scrcpy_remote_control.hpp"
+
 
 #define INJECT_SOCKET_PATH "/tmp/remote_inject.sock"
 #define MAXI_SOCKET_CONN (5)
@@ -31,31 +33,31 @@ struct RemoteInputCmd
 
 typedef struct RemoteInputCmd RemoteInputCmd;
 
-int main()
-{
-    int cmd = 0;
-    int x = 0, y = 0, endX = 0, endY = 0;
-    begin_session();
-    // int bx = 402, by = 2132;
-    // int ex = 425, ey = 1317;
-    // long_press_move_finger(bx, by, ex, ey, 3000, 0);
-    // for (int i = 0; i < 40; i++) {
-    //     long_click_screen(550, 1651, 0);
-    //     usleep(200000);
-    // }
-    // long_click_screen(410, 2143, 0);
-    long_click_screen(1995, 577, 0);
-    usleep(1000000);
-    long_click_screen(992, 300, 0);
-    end_session();
-    return 0;
-}
+// int main()
+// {
+//     int cmd = 0;
+//     int x = 0, y = 0, endX = 0, endY = 0;
+//     begin_session();
+//     // int bx = 402, by = 2132;
+//     // int ex = 425, ey = 1317;
+//     // long_press_move_finger(bx, by, ex, ey, 3000, 0);
+//     // for (int i = 0; i < 40; i++) {
+//     //     long_click_screen(550, 1651, 0);
+//     //     usleep(200000);
+//     // }
+//     // long_click_screen(410, 2143, 0);
+//     long_click_screen(1995, 577, 0);
+//     usleep(1000000);
+//     long_click_screen(992, 300, 0);
+//     end_session();
+//     return 0;
+// }
 
 int press_screen(int x, int y)
 {
     RemoteInputCmd cmd = {
-        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .eventType = SDL_MOUSEBUTTONDOWN,
+        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .x = x,
         .y = y};
     // press
@@ -69,8 +71,8 @@ int press_screen(int x, int y)
 int release_screen(int x, int y)
 {
     RemoteInputCmd cmd = {
-        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .eventType = SDL_MOUSEBUTTONUP,
+        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .x = x,
         .y = y};
     // release
@@ -84,8 +86,8 @@ int release_screen(int x, int y)
 int move_finger(int x, int y)
 {
     RemoteInputCmd cmd = {
-        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .eventType = SDL_MOUSEMOTION,
+        .buttonState = SC_MOUSE_BUTTON_LEFT,
         .x = x,
         .y = y};
     // move to specific position
@@ -189,14 +191,15 @@ int begin_session()
         return -1;
     }
     printf("Socket connected!\n");
+    return 0;
 }
 
 int end_session()
 {
     printf("Ending session...\n");
     RemoteInputCmd cmd = {
-        .buttonState = SDL_SESSION_END,
         .eventType = SDL_SESSION_END,
+        .buttonState = SDL_SESSION_END,
         .x = 0,
         .y = 0};
     // end session
@@ -206,6 +209,6 @@ int end_session()
     }
     usleep(500000);
     close(cmdSocketFd);
-    printf("Session ended!\n");
+    printf("Session terminated!\n");
     return 0;
 }
