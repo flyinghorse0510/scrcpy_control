@@ -380,7 +380,8 @@ def frame_filter_thread():
     frameReader.start()
     while frameReader.is_alive():
         frame = frameQueue.get()
-        frame_filter(frame)
+        originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        frame_filter(originalFrame)
         frameQueue.task_done()
     frameReader.join()
 
