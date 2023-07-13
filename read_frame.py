@@ -340,19 +340,23 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
     return True
 
 def returnValidMedium(buffer: list[int]) -> int:
+    
+    if buffer[0] <= buffer[1] and buffer[1] <= buffer[2]:
+        return buffer[1]
+    
     if buffer[0] == buffer[1] or buffer[0] == buffer[2]:
         return buffer[0]
     
     if buffer[1] == buffer[2]:
         return buffer[1]
     
+    if buffer[0] >= buffer[1] and buffer[1] >= buffer[2]:
+        return buffer[1]
     
-    if buffer[0] <= buffer[1] and buffer[1] <= buffer[2]:
+    if buffer[0] >= buffer[1] and buffer[2] >= buffer[1]:
         return buffer[1]
-    elif buffer[0] >= buffer[1] and buffer[2] >= buffer[1]:
-        return buffer[1]
-    else:
-        return -1
+    
+    return -1
 
 def frame_filter(originanlFrame: Image.Image):
     global frameBufferList
