@@ -363,7 +363,7 @@ def frame_filter(originanlFrame: Image.Image):
     elif statusId != FREE_TIME:
         if statusId != STOP_TIME:
             frameBufferList[-1]["leftTime"] = get_left_time(binarizedFrame)
-            info["leftTime"] = returnValidMedium([frameBufferList[0]["leftTime"], frameBufferList[1]["leftTime"], frameBufferList[2]["leftTime"]])
+            info["leftTime"] = frameBufferList[-1]["leftTime"]
         
         frameBufferList[-1]["currentBet"] = get_bet(binarizedFrame)
         info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
