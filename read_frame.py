@@ -20,6 +20,7 @@ StatusArea = (1056, 320, 1268, 386)
 CenterStatusArea = (1110, 320, 1320, 386)
 LeftTime1Area = (1268, 320, 1310, 386)
 LeftTime0Area = (1316, 320, 1358, 386)
+LeftTimeArea = (1268, 320, 1358, 386)
 DragonWinArea = (900, 718, 1068, 790)
 TigerWinArea = (1356, 718, 1524, 790)
 YelloFilter = [(20, 43, 46), (34, 255, 255)]
@@ -194,6 +195,11 @@ def get_bet(gameScreen: Image.Image) -> tuple[int, int, int]:
     return (dragonBet, equalBet, tigerBet)
 
 def get_left_time(gameScreen: Image.Image) -> int:
+    leftTimeImg = gameScreen.crop(LeftTimeArea)
+    englishApi.SetImage(leftTimeImg)
+    leftTimeTxt = cleanStr(englishApi.GetUTF8Text())
+    leftTime = pureTxt2int(leftTimeTxt)
+    return leftTime
     leftTime1Img = gameScreen.crop(LeftTime1Area)
     leftTime0Img = gameScreen.crop(LeftTime0Area)
     englishApi.SetImage(leftTime1Img)
@@ -310,7 +316,6 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
     if (currentLeftTime > 1 and maxBet >= BET_FIRST_THRESHOLD) or (currentLeftTime <= 1 and maxBet >= BET_SECOND_THRESHOLD):
         if maxBet * REVERT_RATIO_LOWER_LIMIT > minBet:
             betRatio = random.uniform(REVERT_RATIO_LOWER_LIMIT+0.05, REVERT_RATIO_UPPER_LIMIT)
-            print(betRatio)
             try:
                 if bet[0] < bet[2]:
                     if realTime and expectedLeastBet[0] < minBet:
@@ -318,14 +323,14 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
                         expectedLeastBet[0] = minBet + expectedBet
                         currentSelfBet[0] += expectedBet
                         remoteQueue.put([remote_add_dragon_bet, expectedBet], block=False)
-                        print("remote_add_dragon_bet: %.2lf (ratio: %.2lf)" %(expectedBet, betRatio))
+                        print("remote_add_dragon_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
                 else:
                     if realTime and expectedLeastBet[1] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
                         expectedLeastBet[1] = minBet + expectedBet
                         currentSelfBet[1] += expectedBet
                         remoteQueue.put([remote_add_tiger_bet, expectedBet], block=False)
-                        print("remote_add_tiger_bet: %.2lf (ratio: %.2lf)" %(expectedBet, betRatio))
+                        print("remote_add_tiger_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
             except queue.Full:
                 print("Fatal Error! REMOTE QUEUE FULL!")
                 return False
