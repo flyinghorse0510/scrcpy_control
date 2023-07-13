@@ -267,8 +267,7 @@ def remote_add_dragon_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
-        time.sleep(0.16)
+        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1], 160)
         if ret != 0:
             return ret
     return 0
@@ -278,8 +277,7 @@ def remote_add_tiger_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
-        time.sleep(0.16)
+        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1], 160)
         if ret != 0:
             return ret
     return 0
