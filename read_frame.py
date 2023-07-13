@@ -68,7 +68,7 @@ BET_TIME = 1
 STOP_TIME = 2
 UNKNOWN_TIME = 3
 
-BET_SIZE = 1000
+BET_SIZE = 100
 
 totalBet = 1000
 totalGameCount = 0
