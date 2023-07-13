@@ -249,15 +249,15 @@ def frame_source_thread(offlineMode: bool = False):
 
 def remote_switch_bet(bet: int) -> int:
     if bet == 100:
-        remote_control.long_click_screen(Bet100Position[0], Bet100Position[1])
+        remote_control.long_click_screen(Bet100Position[0], Bet100Position[1], 0)
     elif bet == 1000:
-        remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1])
+        remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1], 0)
     elif bet == 10000:
-        remote_control.long_click_screen(Bet1wPosition[0], Bet1wPosition[1])
+        remote_control.long_click_screen(Bet1wPosition[0], Bet1wPosition[1], 0)
     elif bet == 100000:
-        remote_control.long_click_screen(Bet10wPosition[0], Bet10wPosition[1])
+        remote_control.long_click_screen(Bet10wPosition[0], Bet10wPosition[1], 0)
     elif bet == 1000000:
-        remote_control.long_click_screen(Bet100wPosition[0], Bet100wPosition[1])
+        remote_control.long_click_screen(Bet100wPosition[0], Bet100wPosition[1], 0)
     else:
         return -1
     return 0
@@ -267,7 +267,7 @@ def remote_add_dragon_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
+        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1], 0)
         time.sleep(0.16)
         if ret != 0:
             return ret
@@ -278,7 +278,7 @@ def remote_add_tiger_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
+        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1], 0)
         time.sleep(0.15)
         if ret != 0:
             return ret
@@ -470,8 +470,7 @@ def process_frame(infoDict: dict, realTime: bool = True) -> bool:
                 newDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 newEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
                 newTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
-                if newDragonBet != currentDragonBet or newTigerBet != currentTigerBet:
-                    add_bet([newDragonBet, newEqualBet, newTigerBet], realTime)
+                add_bet([newDragonBet, newEqualBet, newTigerBet], realTime)
                 currentDragonBet = newDragonBet
                 currentEqualBet = newEqualBet
                 currentTigerBet = newTigerBet
