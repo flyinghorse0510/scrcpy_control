@@ -90,7 +90,7 @@ englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
 infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
 
 def get_info_template() -> dict:
-    return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winActivated": NONE_WIN}
+    return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
 
 frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
 
