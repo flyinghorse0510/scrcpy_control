@@ -267,7 +267,8 @@ def remote_add_dragon_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1], 160)
+        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
+        time.sleep(0.16)
         if ret != 0:
             return ret
     return 0
@@ -277,7 +278,8 @@ def remote_add_tiger_bet(targetBet: int) -> int:
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1], 160)
+        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
+        time.sleep(0.15)
         if ret != 0:
             return ret
     return 0
@@ -309,6 +311,7 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
     global expectedLeastBet
     global dataLock
     global currentSelfBet
+    global currentLeftTime
     minBet = min(bet[0], bet[2])
     maxBet = max(bet[0], bet[2])
     if (currentLeftTime > 1 and maxBet >= BET_FIRST_THRESHOLD) or (currentLeftTime <= 1 and maxBet >= BET_SECOND_THRESHOLD):
@@ -318,6 +321,7 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
                 if bet[0] < bet[2]:
                     if realTime and expectedLeastBet[0] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[0] = minBet + expectedBet
                         currentSelfBet[0] += expectedBet
                         remoteQueue.put([remote_add_dragon_bet, expectedBet], block=False)
@@ -325,6 +329,7 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
                 else:
                     if realTime and expectedLeastBet[1] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[1] = minBet + expectedBet
                         currentSelfBet[1] += expectedBet
                         remoteQueue.put([remote_add_tiger_bet, expectedBet], block=False)
