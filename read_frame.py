@@ -8,6 +8,7 @@ import queue
 import threading
 import remote_control
 import random
+import time
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -33,8 +34,11 @@ BetSize = (1000000, 100000, 10000, 1000, 100)
 
 WINNER_ARRAY = ["龙","和","虎"]
 frameQueue = Queue(maxsize=30)
+infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
-# dataLock = threading.Lock()
+dataLock = threading.Lock()
+
+
 
 FREE_STATE = 0
 RESULT_STATE = 1
@@ -53,15 +57,17 @@ NONE_WIN = 3
 LEFT_TIME_THRESHOLD = 5
 WAIT_FRAME_THRESHOLD = 0
 
-BET_FIRST_THRESHOLD = 1000000
-BET_SECOND_THRESHOLD = 200000
+BET_FIRST_THRESHOLD = 3000
+BET_SECOND_THRESHOLD = 1000
 REVERT_RATIO_UPPER_LIMIT = 0.6
-REVERT_RATIO_LOWER_LIMIT = 0.4
+REVERT_RATIO_LOWER_LIMIT = 0.5
 
 FREE_TIME = 0
 BET_TIME = 1
 STOP_TIME = 2
 UNKNOWN_TIME = 3
+
+BET_SIZE = 1000
 
 totalBet = 1000
 totalGameCount = 0
@@ -74,11 +80,19 @@ currentTigerBet = 0
 currentEqualBet = 0
 currentLeftTime = 15
 currentWaitFrame = 0
+expectedLeastBet = [0, 0]
 currentSelfBet = [0, 0]
 currentState = FREE_STATE
 
 chineseApi = PyTessBaseAPI(psm=tessPSM, lang = tessL)
 englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
+
+infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
+
+def get_info_template() -> dict:
+    return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winActivated": NONE_WIN}
+
+frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
 
 def txt2int(txt: str) -> int:
     if len(txt) == 0:
@@ -204,10 +218,12 @@ def get_winner(gameScreen: Image.Image) -> int:
     elif tigerActivated:
         return TIGER_WIN
     return NONE_WIN
+    
+    
 
 def frame_source_thread(offlineMode: bool = False):
     global frameQueue
-    cap = cv2.VideoCapture("./tiger_video/test2.mp4")
+    cap = cv2.VideoCapture("/dev/video0")
     if not cap.isOpened():
         print("Fatal error! Open Video file failed!\n")
     print("Frame Reader started!")
@@ -223,9 +239,11 @@ def frame_source_thread(offlineMode: bool = False):
     cap.release()
     print("Frame Reader terminated!")
 
+    
+
 def remote_switch_bet(bet: int) -> int:
     if bet == 100:
-        remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1])
+        remote_control.long_click_screen(Bet100Position[0], Bet100Position[1])
     elif bet == 1000:
         remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1])
     elif bet == 10000:
@@ -239,55 +257,25 @@ def remote_switch_bet(bet: int) -> int:
     return 0
 
 def remote_add_dragon_bet(targetBet: int) -> int:
-    global currentBet
-    clickCount = 0
-    betCount = [
-        int(targetBet / 1000000),
-        int(targetBet / 100000),
-        int(targetBet / 10000),
-        int(targetBet / 1000),
-        int(targetBet / 100)
-    ]
-    for i in range(len(betCount)):
-        if betCount[i] == 0:
-            continue
-        remote_switch_bet(BetSize[i])
-        for j in range(betCount[i]):
-            if clickCount == MAX_BET_CLICK:
-                return 0
-            else:
-                # Add bet
-                ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
-                if ret != 0:
-                    return ret
-                currentBet[0] += BetSize[i]
-                clickCount += 1
+    global currentSelfBet
+    remote_switch_bet(BET_SIZE)
+    betCount = int(targetBet / BET_SIZE)
+    for i in range(betCount):
+        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
+        time.sleep(0.16)
+        if ret != 0:
+            return ret
     return 0
 
 def remote_add_tiger_bet(targetBet: int) -> int:
-    global currentBet
-    clickCount = 0
-    betCount = [
-        int(targetBet / 1000000),
-        int(targetBet / 100000),
-        int(targetBet / 10000),
-        int(targetBet / 1000),
-        int(targetBet / 100)
-    ]
-    for i in range(len(betCount)):
-        if betCount[i] == 0:
-            continue
-        remote_switch_bet(BetSize[i])
-        for j in range(betCount[i]):
-            if clickCount == MAX_BET_CLICK:
-                return 0
-            else:
-                # Add bet
-                ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
-                if ret != 0:
-                    return ret
-                currentBet[1] += BetSize[i]
-                clickCount += 1
+    global currentSelfBet
+    remote_switch_bet(BET_SIZE)
+    betCount = int(targetBet / BET_SIZE)
+    for i in range(betCount):
+        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
+        time.sleep(0.16)
+        if ret != 0:
+            return ret
     return 0
 
 def remote_control_thread():
@@ -314,26 +302,87 @@ def remote_control_thread():
 def add_bet(bet: list[int], realTime: bool = True) -> bool:
     global currentLeftTime
     global remoteQueue
-    minBet = min(bet[0], bet[1])
-    maxBet = max(bet[0], bet[1])
+    global expectedLeastBet
+    global dataLock
+    global currentSelfBet
+    minBet = min(bet[0], bet[2])
+    maxBet = max(bet[0], bet[2])
     if (currentLeftTime > 1 and maxBet >= BET_FIRST_THRESHOLD) or (currentLeftTime <= 1 and maxBet >= BET_SECOND_THRESHOLD):
         if maxBet * REVERT_RATIO_LOWER_LIMIT > minBet:
             betRatio = random.uniform(REVERT_RATIO_LOWER_LIMIT+0.05, REVERT_RATIO_UPPER_LIMIT)
+            print(betRatio)
             try:
-                if bet[0] < bet[1]:
-                    if realTime:
-                        remoteQueue.put([remote_add_dragon_bet, maxBet * betRatio - minBet], block=False)
-                    else:
-                        print("remote_add_dragon_bet: %.2lf" %(maxBet * betRatio - minBet))
+                if bet[0] < bet[2]:
+                    if realTime and expectedLeastBet[0] < minBet:
+                        expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        expectedLeastBet[0] = minBet + expectedBet
+                        currentSelfBet[0] += expectedBet
+                        remoteQueue.put([remote_add_dragon_bet, expectedBet], block=False)
+                        print("remote_add_dragon_bet: %.2lf (ratio: %.2lf)" %(expectedBet, betRatio))
                 else:
-                    if realTime:
-                        remoteQueue.put([remote_add_tiger_bet, maxBet * betRatio - minBet], block=False)
-                    else:
-                        print("remote_add_tiger_bet: %.2lf" %(maxBet * betRatio - minBet))
+                    if realTime and expectedLeastBet[1] < minBet:
+                        expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        expectedLeastBet[1] = minBet + expectedBet
+                        currentSelfBet[1] += expectedBet
+                        remoteQueue.put([remote_add_tiger_bet, expectedBet], block=False)
+                        print("remote_add_tiger_bet: %.2lf (ratio: %.2lf)" %(expectedBet, betRatio))
             except queue.Full:
                 print("Fatal Error! REMOTE QUEUE FULL!")
                 return False
     return True
+
+def returnValidMedium(buffer: list[int]) -> int:
+    if min(buffer) == -1:
+        return -1
+    
+    if buffer[0] <= buffer[1] and buffer[1] <= buffer[2]:
+        return buffer[1]
+    elif buffer[0] >= buffer[1] and buffer[2] >= buffer[1]:
+        return buffer[1]
+    else:
+        return -1
+
+def frame_filter(originanlFrame: Image.Image):
+    global frameBufferList
+    global infoQueue
+    
+    frameBufferList = frameBufferList[1:]
+    frameBufferList.append(get_info_template())
+    info = get_info_template()
+    binarizedFrame = binarizePillow(originanlFrame, 156)
+    
+    statusId = get_status(binarizedFrame)
+    frameBufferList[-1]["statusId"] = statusId
+    info["statusId"] = statusId
+    
+    
+    if statusId == UNKNOWN_TIME:
+        info["winner"] = get_winner(originanlFrame)
+        infoQueue.put(info)
+        return
+    elif statusId != FREE_TIME:
+        if statusId != STOP_TIME:
+            frameBufferList[-1]["leftTime"] = get_left_time(binarizedFrame)
+            info["leftTime"] = returnValidMedium([frameBufferList[0]["leftTime"], frameBufferList[1]["leftTime"], frameBufferList[2]["leftTime"]])
+        
+        frameBufferList[-1]["currentBet"] = get_bet(binarizedFrame)
+        info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
+        info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
+        info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
+        
+    infoQueue.put(info)
+        
+        
+    
+def frame_filter_thread():
+    global frameQueue
+    frameReader = threading.Thread(target=frame_source_thread, args=(False,))
+    frameReader.start()
+    while frameReader.is_alive():
+        frame = frameQueue.get()
+        frame_filter(frame)
+        frameQueue.task_done()
+    frameReader.join()
 
 def clean_game():
     global currentDragonBet
@@ -341,15 +390,17 @@ def clean_game():
     global currentEqualBet
     global currentLeftTime
     global currentWaitFrame
-    global currentBet
+    global currentSelfBet
+    global expectedLeastBet
     currentDragonBet = 0
     currentTigerBet = 0
     currentEqualBet = 0
     currentLeftTime = 15
     currentWaitFrame = 0
-    currentBet = [0, 0]
+    currentSelfBet = [0, 0]
+    expectedLeastBet = [0, 0]
     
-def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> bool:
+def process_frame(infoDict: dict, realTime: bool = True) -> bool:
     global totalGameCount
     global currentWaitFrame
     global currentLeftTime
@@ -358,13 +409,13 @@ def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> boo
     global currentEqualBet
     global currentTigerBet
     global currentSelfBet
+    global infoQueue
+        
+    statusId = infoDict["statusId"]
+    leftTime = infoDict["leftTime"]
+    currentBet = infoDict["currentBet"]
+    winner = infoDict["winner"]
     
-    binarizedGameScreen = binarizePillow(originalGameScreen, 156)
-    statusId = get_status(binarizedGameScreen)
-    
-    
-    
-    firstEvaluation = True
     while True:
         if currentState == FREE_STATE:
             if statusId == FREE_TIME:
@@ -376,12 +427,8 @@ def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> boo
             else:
                 break
         elif currentState == WATCH_STATE:
-            # print(currentLeftTime)
-            if firstEvaluation:
-                leftTime = get_left_time(binarizedGameScreen)
-                currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
-                firstEvaluation = False
-                
+            currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
+            
             if statusId == STOP_TIME:
                 currentState = STOP_STATE
                 print("Stop Bet")
@@ -391,23 +438,18 @@ def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> boo
                 print("Begin Bet")
                 continue
             else:
-                currentBet = get_bet(binarizedGameScreen)
                 currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
                 currentTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
                 break
         elif currentState == BET_STATE:
-            if firstEvaluation:
-                leftTime = get_left_time(binarizedGameScreen)
-                currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
-                firstEvaluation = False
+            currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
             
             if statusId == STOP_TIME:
                 currentState = STOP_STATE
                 print("Stop Bet")
                 continue
             else:
-                currentBet = get_bet(binarizedGameScreen)
                 newDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 newEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
                 newTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
@@ -423,10 +465,9 @@ def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> boo
                 print("Wait Result")
                 break
             else:
-                currentBet = get_bet(binarizedGameScreen)
-                currentDragonBet = currentDragonBet if currentBet[0] == -1 else currentBet[0]
-                currentEqualBet = currentEqualBet if currentBet[1] == -1 else currentBet[1]
-                currentTigerBet = currentTigerBet if currentBet[2] == -1 else currentBet[2]
+                currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
+                currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
+                currentTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
                 break
         elif currentState == RESULT_STATE:
             if statusId == FREE_TIME:
@@ -434,12 +475,11 @@ def process_frame(originalGameScreen: Image.Image, realTime: bool = True) -> boo
                 print("******** Miss Result ********")
                 break
             else:
-                winner = get_winner(originalGameScreen)
                 if winner != NONE_WIN:
                     print("Result Received!")
                     currentState = FREE_STATE
                     totalGameCount += 1
-                    print("Dragon Bet: %d\nEqual Bet: %d\nTiger Bet: %d\nWinner: %s\nMy Dragon Bet: %d\nMy Tiger Bet: %d\n" %(currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1]))
+                    print("Dragon Bet: %d\nEqual Bet: %d\nTiger Bet: %d\nWinner: %s\nMy Expected Dragon Bet: %d\nMy Expected Tiger Bet: %d\n" %(currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1]))
                     recordFile.write("%d,%d,%d,%d,%s,%d,%d\n" %(totalGameCount, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1]))
                     recordFile.flush()
                     clean_game()
@@ -473,17 +513,24 @@ recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎)\n")
 recordFile.flush()
 
 totalFrame = 0
-frameReader = threading.Thread(target=frame_source_thread, args=(True,))
-frameReader.start()
-while frameReader.is_alive():
-    frame = frameQueue.get()
-    gameScreen = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-    process_frame(gameScreen, False)
+frameFilter = threading.Thread(target=frame_filter_thread)
+frameFilter.start()
+remoteController = threading.Thread(target=remote_control_thread)
+remoteController.start()
+while frameFilter.is_alive():
+    infoDict = infoQueue.get()
+    start = time.time()
+    process_frame(infoDict, realTime=True)
+    end = time.time()
     totalFrame += 1
-    frameQueue.task_done()
+    infoQueue.task_done()
     # if totalFrame % 300 == 0:
     #     print("Video Time: %ds" %(totalFrame/60))
 
-
+remoteQueue.put(["end"])
 chineseApi.End()
 englishApi.End()
+
+print("Waiting other threads...")
+frameFilter.join()
+remoteController.join()
