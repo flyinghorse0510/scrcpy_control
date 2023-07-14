@@ -1,9 +1,10 @@
 from PIL import Image, ImageOps
 import cv2
 import numpy as np
+from multiprocessing import Process
+from multiprocessing import Queue
 from tesserocr import PyTessBaseAPI, PSM
 from tesserocr import get_languages
-from queue import Queue
 import queue
 import threading
 import remote_control
@@ -37,9 +38,9 @@ WINNER_ARRAY = ["龙","和","虎"]
 frameQueue = Queue(maxsize=30)
 infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
-dataLock = threading.Lock()
 
-
+NUM_ENGLISH_OCR_PROC = 1
+NUM_CHINESE_OCR_PROC = 3
 
 FREE_STATE = 0
 RESULT_STATE = 1
@@ -85,15 +86,15 @@ expectedLeastBet = [0, 0]
 currentSelfBet = [0, 0]
 currentState = FREE_STATE
 
-chineseApi = PyTessBaseAPI(psm=tessPSM, lang = tessL)
-englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
+realTime = True
+
 
 infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
 
 def get_info_template() -> dict:
     return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
 
-frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
+
 
 def txt2int(txt: str) -> int:
     if len(txt) == 0:
@@ -146,70 +147,56 @@ def binarizePillow(img: Image.Image, threshold: int) -> Image.Image:
     outputImg = ImageOps.grayscale(img)
     return outputImg.point(lambda x: 0 if x > threshold else 255)
 
-def recognize_chinese(img: Image.Image) -> str:
-    chineseApi.SetImage(img)
-    return cleanStr(chineseApi.GetUTF8Text())
+def submit_ocr(task: list, ocrQueue: Queue):
+    try:
+        ocrQueue.put(task, block=False)
+    except queue.Full:
+        print("OCR too slow! Blocking")
+        ocrQueue.put(task, block=True)
+        print("OCR Queue unblocked!")
 
-def recognize_english(img: Image.Image) -> str:
-    englishApi.SetImage(img)
-    return cleanStr(englishApi.GetUTF8Text())
-
-def get_status(gameScreen: Image.Image) -> int:
-    statusImg = gameScreen.crop(StatusArea)
-    statusTxt = recognize_chinese(statusImg)
-    # print(statusTxt)
-    if statusTxt == "空闲时间":
-        return FREE_TIME
-    elif statusTxt == "下注时间":
-        return BET_TIME
+def submit_status_ocr(gameScreen: Image.Image, chineseOcrQueue: Queue):
+    sideStatusImg = gameScreen.crop(StatusArea)
+    submit_ocr(["sideStatus", sideStatusImg], chineseOcrQueue)
     centerStatusImg = gameScreen.crop(CenterStatusArea)
-    centerStatusTxt = recognize_chinese(centerStatusImg)
+    submit_ocr(["centerStatus", centerStatusImg], chineseOcrQueue)
+    
+def get_status_ocr(sideStatusTxt: str, centerStatusTxt: str) -> int:
+    # print(statusTxt)
+    if sideStatusTxt == "空闲时间":
+        return FREE_TIME
+    elif sideStatusTxt == "下注时间":
+        return BET_TIME
+    
     # print(centerStatusTxt)
     if centerStatusTxt == "停止下注":
         return STOP_TIME
     return UNKNOWN_TIME
 
-def get_bet(gameScreen: Image.Image) -> tuple[int, int, int]:
+def submit_bet_ocr(gameScreen: Image.Image, chineseOcrQueue: Queue):
     dragonBetImg = gameScreen.crop(DragonBetArea)
     tigerBetImg = gameScreen.crop(TigerBetArea)
     equalBetImg = gameScreen.crop(EqualBetArea)
+    submit_ocr(["dragonBet", dragonBetImg], chineseOcrQueue)
+    submit_ocr(["equalBet", equalBetImg], chineseOcrQueue)
+    submit_ocr(["tigerBet", tigerBetImg], chineseOcrQueue)
+    
+def get_bet_ocr(dragonBetTxt: str, equalBetTxt: str, tigerBetTxt: str) -> tuple[int, int, int]:
     # Dragon Bet(Left)
-    chineseApi.SetImage(dragonBetImg)
-    dragonBetTxt = cleanStr(chineseApi.GetUTF8Text())
     dragonBet = txt2int(dragonBetTxt)
-    # dragonBetImg.save("dragon.png")
-    # print(dragonBetTxt)
     # Equal Bet(Center)
-    chineseApi.SetImage(equalBetImg)
-    equalBetTxt = cleanStr(chineseApi.GetUTF8Text())
     equalBet = txt2int(equalBetTxt)
-    # equalBetImg.save("equal.png")
-    # print(equalBetTxt)
     # Tiger Bet(Right)
-    chineseApi.SetImage(tigerBetImg)
-    tigerBetTxt = cleanStr(chineseApi.GetUTF8Text())
     tigerBet = txt2int(tigerBetTxt)
-    # print(tigerBetTxt)
-    # tigerBetImg.save("tiger.png")
     # Result
     return (dragonBet, equalBet, tigerBet)
-
-def get_left_time(gameScreen: Image.Image) -> int:
+    
+def submit_time_ocr(gameScreen: Image.Image, englishOcrQueue: Queue):
     leftTimeImg = gameScreen.crop(LeftTimeArea)
-    englishApi.SetImage(leftTimeImg)
-    leftTimeTxt = cleanStr(englishApi.GetUTF8Text())
+    submit_ocr(["leftTime", leftTimeImg], englishOcrQueue)
+    
+def get_time_ocr(leftTimeTxt: str) -> int:
     leftTime = pureTxt2int(leftTimeTxt)
-    return leftTime
-    leftTime1Img = gameScreen.crop(LeftTime1Area)
-    leftTime0Img = gameScreen.crop(LeftTime0Area)
-    englishApi.SetImage(leftTime1Img)
-    leftTime1Txt = cleanStr(englishApi.GetUTF8Text())
-    englishApi.SetImage(leftTime0Img)
-    leftTime0Txt = cleanStr(englishApi.GetUTF8Text())
-    leftTimeTxt = leftTime1Txt + leftTime0Txt
-    # print(leftTimeTxt)
-    leftTime = pureTxt2int(leftTimeTxt)
-    # print(leftTime)
     return leftTime
     
 def get_winner(gameScreen: Image.Image) -> int:
@@ -224,96 +211,52 @@ def get_winner(gameScreen: Image.Image) -> int:
     elif tigerActivated:
         return TIGER_WIN
     return NONE_WIN
-    
-    
-
-def frame_source_thread(offlineMode: bool = False):
-    global frameQueue
-    cap = cv2.VideoCapture("/dev/video0")
-    if not cap.isOpened():
-        print("Fatal error! Open Video file failed!\n")
-    print("Frame Reader started!")
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if ret == True:
-            try:
-                frameQueue.put(frame, block=offlineMode)
-            except queue.Full:
-                print("Computation side too slow! Dropping frame...")
-        else:
-            break
-    cap.release()
-    print("Frame Reader terminated!")
-
-    
+ 
 
 def remote_switch_bet(bet: int) -> int:
     if bet == 100:
-        remote_control.long_click_screen(Bet100Position[0], Bet100Position[1], 0)
+        remote_control.long_click_screen(Bet100Position[0], Bet100Position[1])
     elif bet == 1000:
-        remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1], 0)
+        remote_control.long_click_screen(Bet1000Position[0], Bet1000Position[1])
     elif bet == 10000:
-        remote_control.long_click_screen(Bet1wPosition[0], Bet1wPosition[1], 0)
+        remote_control.long_click_screen(Bet1wPosition[0], Bet1wPosition[1])
     elif bet == 100000:
-        remote_control.long_click_screen(Bet10wPosition[0], Bet10wPosition[1], 0)
+        remote_control.long_click_screen(Bet10wPosition[0], Bet10wPosition[1])
     elif bet == 1000000:
-        remote_control.long_click_screen(Bet100wPosition[0], Bet100wPosition[1], 0)
+        remote_control.long_click_screen(Bet100wPosition[0], Bet100wPosition[1])
     else:
         return -1
     return 0
 
 def remote_add_dragon_bet(targetBet: int) -> int:
-    global currentSelfBet
     remote_switch_bet(BET_SIZE)
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
-        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1], 0)
-        time.sleep(0.16)
-        if ret != 0:
-            return ret
-    return 0
-
-def remote_add_tiger_bet(targetBet: int) -> int:
-    global currentSelfBet
-    remote_switch_bet(BET_SIZE)
-    betCount = int(targetBet / BET_SIZE)
-    for i in range(betCount):
-        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1], 0)
+        ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
         time.sleep(0.15)
         if ret != 0:
             return ret
     return 0
 
-def remote_control_thread():
-    global remoteQueue
-    ret = remote_control.begin_session()
-    if ret != 0:
-        print("Error start remote session!")
-        return
-    while True:
-        cmd = remoteQueue.get()
-        cmdLength = len(cmd)
-        if cmdLength % 2 != 0:
-            break
-        cmdLength = int(cmdLength / 2)
-        for i in range(cmdLength):
-            ret = cmd[2*i](cmd[2*i+1])
-            if ret != 0:
-                print("Error execute remote instruction! Skip...")
-                break
-        remoteQueue.task_done()
-    remote_control.end_session()
-    print("Remote session terminated!")
+def remote_add_tiger_bet(targetBet: int) -> int:
+    remote_switch_bet(BET_SIZE)
+    betCount = int(targetBet / BET_SIZE)
+    for i in range(betCount):
+        ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
+        time.sleep(0.15)
+        if ret != 0:
+            return ret
+    return 0
 
-def add_bet(bet: list[int], realTime: bool = True) -> bool:
+def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True) -> bool:
     global currentLeftTime
-    global remoteQueue
     global expectedLeastBet
-    global dataLock
     global currentSelfBet
     global currentLeftTime
     minBet = min(bet[0], bet[2])
     maxBet = max(bet[0], bet[2])
+    if not remoteCompleteQueue.empty():
+        return
     if (currentLeftTime > 1 and maxBet >= BET_FIRST_THRESHOLD) or (currentLeftTime <= 1 and maxBet >= BET_SECOND_THRESHOLD):
         if maxBet * REVERT_RATIO_LOWER_LIMIT > minBet:
             betRatio = random.uniform(REVERT_RATIO_LOWER_LIMIT+0.05, REVERT_RATIO_UPPER_LIMIT)
@@ -324,7 +267,12 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
                         expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[0] = minBet + expectedBet
                         currentSelfBet[0] += expectedBet
-                        remoteQueue.put([remote_add_dragon_bet, expectedBet], block=False)
+                        expectedBetCount = int(expectedBet / BET_SIZE)
+                        remoteCmd = [remote_switch_bet, BET_SIZE]
+                        for i in range(expectedBetCount):
+                            remoteCmd.append(remote_add_dragon_bet)
+                            remoteCmd.append(BET_SIZE)
+                        remoteQueue.put(remoteCmd, block=False)
                         print("remote_add_dragon_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
                 else:
                     if realTime and expectedLeastBet[1] < minBet:
@@ -332,7 +280,12 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
                         expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[1] = minBet + expectedBet
                         currentSelfBet[1] += expectedBet
-                        remoteQueue.put([remote_add_tiger_bet, expectedBet], block=False)
+                        expectedBetCount = int(expectedBet / BET_SIZE)
+                        remoteCmd = [remote_switch_bet, BET_SIZE]
+                        for i in range(expectedBetCount):
+                            remoteCmd.append(remote_add_tiger_bet)
+                            remoteCmd.append(BET_SIZE)
+                        remoteQueue.put(remoteCmd, block=False)
                         print("remote_add_tiger_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
             except queue.Full:
                 print("Fatal Error! REMOTE QUEUE FULL!")
@@ -340,66 +293,26 @@ def add_bet(bet: list[int], realTime: bool = True) -> bool:
     return True
 
 def returnValidMedium(buffer: list[int]) -> int:
-    
+    # _--^
     if buffer[0] <= buffer[1] and buffer[1] <= buffer[2]:
         return buffer[1]
     
+    # -x- or --x
     if buffer[0] == buffer[1] or buffer[0] == buffer[2]:
         return buffer[0]
-    
+    # x--
     if buffer[1] == buffer[2]:
         return buffer[1]
     
+    # ^-_
     if buffer[0] >= buffer[1] and buffer[1] >= buffer[2]:
-        return buffer[1]
+        return buffer[2]
     
+    # ^_^
     if buffer[0] >= buffer[1] and buffer[2] >= buffer[1]:
         return buffer[1]
     
-    return -1
-
-def frame_filter(originanlFrame: Image.Image):
-    global frameBufferList
-    global infoQueue
-    
-    frameBufferList = frameBufferList[1:]
-    frameBufferList.append(get_info_template())
-    info = get_info_template()
-    binarizedFrame = binarizePillow(originanlFrame, 156)
-    
-    statusId = get_status(binarizedFrame)
-    frameBufferList[-1]["statusId"] = statusId
-    info["statusId"] = statusId
-    
-    
-    if statusId == UNKNOWN_TIME:
-        info["winner"] = get_winner(originanlFrame)
-        infoQueue.put(info)
-        return
-    elif statusId != FREE_TIME:
-        if statusId != STOP_TIME:
-            frameBufferList[-1]["leftTime"] = get_left_time(binarizedFrame)
-            info["leftTime"] = frameBufferList[-1]["leftTime"]
-        
-        frameBufferList[-1]["currentBet"] = get_bet(binarizedFrame)
-        info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
-        info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
-        info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
-        
-    infoQueue.put(info)
-        
-        
-    
-def frame_filter_thread():
-    global frameQueue
-    frameReader = threading.Thread(target=frame_source_thread, args=(False,))
-    frameReader.start()
-    while frameReader.is_alive():
-        frame = frameQueue.get()
-        originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        frame_filter(originalFrame)
-        frameQueue.task_done()
-    frameReader.join()
+    return min(buffer)    
 
 def clean_game():
     global currentDragonBet
@@ -417,7 +330,7 @@ def clean_game():
     currentSelfBet = [0, 0]
     expectedLeastBet = [0, 0]
     
-def process_frame(infoDict: dict, realTime: bool = True) -> bool:
+def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True) -> bool:
     global totalGameCount
     global currentWaitFrame
     global currentLeftTime
@@ -426,7 +339,6 @@ def process_frame(infoDict: dict, realTime: bool = True) -> bool:
     global currentEqualBet
     global currentTigerBet
     global currentSelfBet
-    global infoQueue
         
     statusId = infoDict["statusId"]
     leftTime = infoDict["leftTime"]
@@ -470,7 +382,7 @@ def process_frame(infoDict: dict, realTime: bool = True) -> bool:
                 newDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 newEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
                 newTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
-                add_bet([newDragonBet, newEqualBet, newTigerBet], realTime)
+                add_bet([newDragonBet, newEqualBet, newTigerBet], remoteQueue=remoteQueue, remoteCompleteQueue=remoteCompleteQueue, remoteCancelQueue=remoteCancelQueue, realTime = realTime)
                 currentDragonBet = newDragonBet
                 currentEqualBet = newEqualBet
                 currentTigerBet = newTigerBet
@@ -511,42 +423,193 @@ def process_frame(infoDict: dict, realTime: bool = True) -> bool:
 # gameScreen = binarizePillow(gameScreen, 156)
 # gameScreen.save("gameScreen.png")
 
+def english_ocr_process(englishOcrQueue: Queue, ocrResultQueue: Queue):
+    englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
+    while True:
+        task = englishOcrQueue.get()
+        if task == None:
+            englishOcrQueue.put(None)
+            break
+        englishApi.SetImage(task[1])
+        englishTxt = cleanStr(englishApi.GetUTF8Text())
+        ocrResultQueue.put([task[0], englishTxt])
+    englishApi.End()
+    print("English OCR instance terminated!")
 
 
-# statusId = get_status(gameScreen)
-# leftTime = get_left_time(gameScreen)
-# print("Status ID")
-# print(statusId)
-# print("Left Time")
-# print(leftTime)
-# print("Bet")
-# print(get_bet(gameScreen))
-# print("Winner")
-# print(get_winner(gameScreen))
+def chinese_ocr_process(chineseOcrQueue: Queue, ocrResultQueue: Queue):
+    chineseApi = PyTessBaseAPI(psm=tessPSM, lang = tessL)
+    while True:
+        task = chineseOcrQueue.get()
+        if task == None:
+            chineseOcrQueue.put(None)
+            break
+        chineseApi.SetImage(task[1])
+        englishTxt = cleanStr(chineseApi.GetUTF8Text())
+        ocrResultQueue.put([task[0], englishTxt])
+    chineseApi.End()
+    print("Chinese OCR instance terminated!")
 
-recordFile = open("record.csv", "w", encoding='utf-8-sig')
-recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎)\n")
-recordFile.flush()
+def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True):
+    print("Status Control process started!")
+    recordFile = open("record.csv", "w", encoding='utf-8-sig')
+    recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎)\n")
+    recordFile.flush()
+    while True:
+        infoDict = infoQueue.get()
+        if infoDict == None:
+            break
+        process_frame(infoDict, recordFile, remoteQueue, remoteCompleteQueue, remoteCancelQueue, realTime)
+    print("Status Control process terminated!")
+        
+    
+def remote_control_process(remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue):
+    ret = remote_control.begin_session()
+    if ret != 0:
+        print("Error start remote session!")
+        return
+    while True:
+        cmd = remoteQueue.get()
+        if cmd == None:
+            break
+        cmdLength = len(cmd)
+        if cmdLength % 2 != 0:
+            break
+        cmdLength = int(cmdLength / 2)
+        for i in range(cmdLength):
+            if not remoteCancelQueue.empty():
+                print("Bet half canceled!")
+                remoteCancelQueue.get()
+                break
+            ret = cmd[2*i](cmd[2*i+1])
+            if ret != 0:
+                print("Error execute remote instruction! Skip...")
+                break
+        try:
+            remoteCompleteQueue.get(block=False)
+        except queue.Empty:
+            print("Remote control fatal error!")
+            break
+        
+    remote_control.end_session()
+    print("Remote session terminated!")
+    
 
-totalFrame = 0
-frameFilter = threading.Thread(target=frame_filter_thread)
-frameFilter.start()
-remoteController = threading.Thread(target=remote_control_thread)
-remoteController.start()
-while frameFilter.is_alive():
-    infoDict = infoQueue.get()
-    start = time.time()
-    process_frame(infoDict, realTime=True)
-    end = time.time()
-    totalFrame += 1
-    infoQueue.task_done()
-    # if totalFrame % 300 == 0:
-    #     print("Video Time: %ds" %(totalFrame/60))
+def frame_source_process(frameQueue: Queue, realTime: bool = True):
+    cap = cv2.VideoCapture("/dev/video0")
+    if not cap.isOpened():
+        print("Fatal error! Open Video file failed!\n")
+    print("Frame Reader started!")
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if ret == True:
+            try:
+                frameQueue.put(frame, block=not realTime)
+            except queue.Full:
+                print("Computation side too slow! Dropping frame...")
+        else:
+            break
+    cap.release()
+    print("Frame Reader terminated!")
+    
+def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
+    print("Frame Filter started!")
+    frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
+    
+    while True:
+        frame = frameQueue.get()
+        if frame == None:
+            infoQueue.put(None)
+            chineseOcrQueue.put(None)
+            englishOcrQueue.put(None)
+            break
+        
+        originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        binarizedFrame = binarizePillow(originalFrame, 156)
+        
+        # submit ocr task
+        submit_bet_ocr(binarizedFrame, chineseOcrQueue)
+        submit_time_ocr(binarizedFrame, englishOcrQueue)
+        submit_status_ocr(binarizedFrame, chineseOcrQueue)
+        
+        # get_winner
+        winner = get_winner(originalFrame)
+        
+        # update frameBufferList
+        frameBufferList = frameBufferList[1:]
+        frameBufferList.append(get_info_template())
+        info = get_info_template()
+        ocrResult = {}
+        
+        # collect ocr result
+        for i in range(6):
+            result = ocrResultQueue.get()
+            ocrResult[result[0]] = result[1]
+        
+        if not ocrResultQueue.empty():
+            print("Fatal Error! Unknown remaining result!")
+            break
+        
+        statusId = get_status_ocr(sideStatusTxt=ocrResult["sideStatus"], centerStatusTxt=ocrResult["centerStatus"])
 
-remoteQueue.put(["end"])
-chineseApi.End()
-englishApi.End()
+        frameBufferList[-1]["statusId"] = statusId
+        info["statusId"] = statusId
+        info["winner"] = winner
+        
+        if statusId != FREE_TIME:
+            if statusId != STOP_TIME:
+                frameBufferList[-1]["leftTime"] = get_time_ocr(ocrResult["leftTime"])
+                info["leftTime"] = frameBufferList[-1]["leftTime"]
+            
+            if statusId != UNKNOWN_TIME:
+                frameBufferList[-1]["currentBet"] = get_bet_ocr(dragonBetTxt=ocrResult["dragonBet"], equalBetTxt=ocrResult["equalBet"], tigerBetTxt=ocrResult["tigerBet"])
+                info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
+                info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
+                info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
+            
+        infoQueue.put(info)
+        
+        
+    print("Frame Filter Terminated!")
+    
 
-print("Waiting other threads...")
-frameFilter.join()
-remoteController.join()
+frameQueue = Queue(maxsize=15)
+infoQueue = Queue(maxsize=15)
+remoteQueue = Queue(maxsize=5)
+remoteCompleteQueue = Queue(maxsize=2)
+remoteCancelQueue = Queue(maxsize=2)
+chineseOcrQueue = Queue(maxsize=10)
+englishOcrQueue = Queue(maxsize=10)
+ocrResultQueue = Queue(maxsize=15)
+
+chineseOcrProcessPool = []
+for i in range(NUM_CHINESE_OCR_PROC):
+    chineseOcrProcessPool.append(Process(target=chinese_ocr_process, args=(chineseOcrQueue, ocrResultQueue)))
+    chineseOcrProcessPool[i].start()
+print("Successfully start chinese ocr process (%d in total)!" %(NUM_CHINESE_OCR_PROC))
+
+englishOcrProcessPool = []
+for i in range(NUM_ENGLISH_OCR_PROC):
+    englishOcrProcessPool.append(Process(target=english_ocr_process, args=(englishOcrQueue, ocrResultQueue)))
+    englishOcrProcessPool[i].start()
+print("Successfully start english ocr process (%d in total)!" %(NUM_ENGLISH_OCR_PROC))
+
+
+frameFilterProcess = Process(target=frame_filter_process, args=(frameQueue, infoQueue, chineseOcrQueue, englishOcrQueue, ocrResultQueue))
+frameFilterProcess.start()
+
+statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteCompleteQueue, remoteCancelQueue, realTime))
+statusControlProcess.start()
+
+remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteCompleteQueue, remoteCancelQueue))
+remoteControlProcess.start()
+
+frameSourceProcess = Process(target=frame_source_process, args=(frameQueue, realTime))
+frameSourceProcess.start()
+
+
+while True:
+    time.sleep(1)
+
+
+
