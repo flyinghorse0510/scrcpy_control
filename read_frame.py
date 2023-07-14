@@ -39,7 +39,7 @@ infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
 
 NUM_ENGLISH_OCR_PROC = 1
-NUM_CHINESE_OCR_PROC = 5
+NUM_CHINESE_OCR_PROC = 6
 
 FREE_STATE = 0
 RESULT_STATE = 1
@@ -231,7 +231,7 @@ def remote_add_dragon_bet(targetBet: int) -> int:
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
         ret = remote_control.long_click_screen(AddDragonBetPosition[0], AddDragonBetPosition[1])
-        time.sleep(0.15)
+        time.sleep(0.16)
         if ret != 0:
             return ret
     return 0
@@ -240,7 +240,7 @@ def remote_add_tiger_bet(targetBet: int) -> int:
     betCount = int(targetBet / BET_SIZE)
     for i in range(betCount):
         ret = remote_control.long_click_screen(AddTigerBetPosition[0], AddTigerBetPosition[1])
-        time.sleep(0.15)
+        time.sleep(0.16)
         if ret != 0:
             return ret
     return 0
@@ -531,7 +531,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             break
         
         originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        binarizedFrame = binarizePillow(originalFrame, 156)
+        binarizedFrame = binarizePillow(originalFrame, 150)
         
         # submit ocr task
         submit_bet_ocr(binarizedFrame, chineseOcrQueue)
