@@ -572,8 +572,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
                 info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
                 info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
-            
-        infoQueue.put(info)
+        try:    
+            infoQueue.put(info, block=False)
+        except:
+            print("Status control too slow! Dropping info...")
         
         
     print("Frame Filter Terminated!")
