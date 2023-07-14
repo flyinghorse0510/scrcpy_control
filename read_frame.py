@@ -427,7 +427,7 @@ def english_ocr_process(englishOcrQueue: Queue, ocrResultQueue: Queue):
     englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
     while True:
         task = englishOcrQueue.get()
-        if task == None:
+        if task is None:
             englishOcrQueue.put(None)
             break
         englishApi.SetImage(task[1])
@@ -441,7 +441,7 @@ def chinese_ocr_process(chineseOcrQueue: Queue, ocrResultQueue: Queue):
     chineseApi = PyTessBaseAPI(psm=tessPSM, lang = tessL)
     while True:
         task = chineseOcrQueue.get()
-        if task == None:
+        if task is None:
             chineseOcrQueue.put(None)
             break
         chineseApi.SetImage(task[1])
@@ -457,7 +457,7 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQ
     recordFile.flush()
     while True:
         infoDict = infoQueue.get()
-        if infoDict == None:
+        if infoDict is None:
             break
         process_frame(infoDict, recordFile, remoteQueue, remoteCompleteQueue, remoteCancelQueue, realTime)
     print("Status Control process terminated!")
@@ -470,7 +470,7 @@ def remote_control_process(remoteQueue: Queue, remoteCompleteQueue: Queue, remot
         return
     while True:
         cmd = remoteQueue.get()
-        if cmd == None:
+        if cmd is None:
             break
         cmdLength = len(cmd)
         if cmdLength % 2 != 0:
@@ -518,7 +518,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
     
     while True:
         frame = frameQueue.get()
-        if frame == None:
+        if frame is None:
             infoQueue.put(None)
             chineseOcrQueue.put(None)
             englishOcrQueue.put(None)
