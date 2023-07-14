@@ -6,7 +6,6 @@ from multiprocessing import Queue
 from tesserocr import PyTessBaseAPI, PSM
 from tesserocr import get_languages
 import queue
-import threading
 import remote_control
 import random
 import time
@@ -264,6 +263,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remo
                 if bet[0] < bet[2]:
                     if realTime and expectedLeastBet[0] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        if expectedBet == 0:
+                            return
                         expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[0] = minBet + expectedBet
                         currentSelfBet[0] += expectedBet
@@ -273,10 +274,13 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remo
                             remoteCmd.append(remote_add_dragon_bet)
                             remoteCmd.append(BET_SIZE)
                         remoteQueue.put(remoteCmd, block=False)
+                        remoteCompleteQueue.put(False)
                         print("remote_add_dragon_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
                 else:
                     if realTime and expectedLeastBet[1] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+                        if expectedBet == 0:
+                            return
                         expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
                         expectedLeastBet[1] = minBet + expectedBet
                         currentSelfBet[1] += expectedBet
@@ -286,6 +290,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remo
                             remoteCmd.append(remote_add_tiger_bet)
                             remoteCmd.append(BET_SIZE)
                         remoteQueue.put(remoteCmd, block=False)
+                        remoteCompleteQueue.put(False)
                         print("remote_add_tiger_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
             except queue.Full:
                 print("Fatal Error! REMOTE QUEUE FULL!")
