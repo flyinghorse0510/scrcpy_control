@@ -39,7 +39,7 @@ infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
 
 NUM_ENGLISH_OCR_PROC = 1
-NUM_CHINESE_OCR_PROC = 3
+NUM_CHINESE_OCR_PROC = 5
 
 FREE_STATE = 0
 RESULT_STATE = 1
@@ -401,6 +401,9 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteComplete
                 currentTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
                 break
         elif currentState == RESULT_STATE:
+            # if not remoteCompleteQueue.empty():
+            #     remoteCancelQueue.put(None)
+            
             if statusId == FREE_TIME:
                 currentState = FREE_STATE
                 print("******** Miss Result ********")
