@@ -276,7 +276,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remo
                             remoteCmd.append(BET_SIZE)
                         remoteQueue.put(remoteCmd, block=False)
                         remoteCompleteQueue.put(False)
-                        print("remote_add_dragon_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
+                        print("remote_add_dragon_bet: %.2lf (dragon_bet: %d, tiger_bet: %d, ratio: %.4lf)" %(expectedBet, bet[0], bet[2], betRatio))
                 else:
                     if realTime and expectedLeastBet[1] < minBet:
                         expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
@@ -292,7 +292,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remo
                             remoteCmd.append(BET_SIZE)
                         remoteQueue.put(remoteCmd, block=False)
                         remoteCompleteQueue.put(False)
-                        print("remote_add_tiger_bet: %.2lf (ratio: %.4lf)" %(expectedBet, betRatio))
+                        print("remote_add_tiger_bet: %.2lf (dragon_bet: %d, tiger_bet: %d, ratio: %.4lf)" %(expectedBet, bet[0], bet[2], betRatio))
             except queue.Full:
                 print("Fatal Error! REMOTE QUEUE FULL!")
                 return False
@@ -417,7 +417,7 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteComplete
                     currentState = FREE_STATE
                     totalGameCount += 1
                     print("Dragon Bet: %d\nEqual Bet: %d\nTiger Bet: %d\nWinner: %s\nMy Expected Dragon Bet: %d\nMy Expected Tiger Bet: %d\n" %(currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1]))
-                    recordFile.write("%d,%d,%d,%d,%s,%d,%d\n" %(totalGameCount, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1]))
+                    recordFile.write("%d,%d,%d,%d,%s,%d,%d,%s\n" %(totalGameCount, currentDragonBet, currentEqualBet, currentTigerBet, WINNER_ARRAY[winner], currentSelfBet[0], currentSelfBet[1], time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
                     recordFile.flush()
                     clean_game()
                 break
@@ -462,7 +462,7 @@ def chinese_ocr_process(chineseOcrQueue: Queue, ocrResultQueue: Queue):
 def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True):
     print("Status Control process started!")
     recordFile = open("record.csv", "w", encoding='utf-8-sig')
-    recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎)\n")
+    recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎),开牌时间\n")
     recordFile.flush()
     while True:
         infoDict = infoQueue.get()
@@ -565,6 +565,8 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         info = get_info_template()
         ocrResult = {}
         
+        
+        
         # collect statusId ocr result
         for i in range(2):
             result = ocrResultQueue.get()
@@ -579,13 +581,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 
         resultCount = 0
         if statusId != FREE_TIME:
-            if statusId != STOP_TIME:
-                if clockCalibrated:
-                    frameBufferList[-1]["leftTime"] = time_converter.get_current_left_time()
-                    info["leftTime"] = frameBufferList[-1]["leftTime"]
-                else:
+            if statusId == BET_TIME:
+                if not clockCalibrated:
                     submit_time_ocr(binarizedFrame, englishOcrQueue)
-                    resultCount += 1
+                    resultCount += 1                  
                     
             if statusId != UNKNOWN_TIME:
                 submit_bet_ocr(binarizedFrame, chineseOcrQueue)
@@ -596,8 +595,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         info["winner"] = winner
         
         # invalidate clock calibration if necessary
-        if clockCalibrated and statusId == FREE_TIME:
-            if time_converter.get_current_unix_time() - clockCalibrationTag >= CALIBRATION_LIMIT:
+        if clockCalibrated:
+            frameBufferList[-1]["leftTime"] = time_converter.get_current_left_time()
+            info["leftTime"] = frameBufferList[-1]["leftTime"]  
+            if statusId == FREE_TIME and time_converter.get_current_unix_time() - clockCalibrationTag >= CALIBRATION_LIMIT:
                 print("Clock calibration invalidated!")
                 clockCalibrated = False
         
@@ -612,15 +613,15 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         
         
         if statusId != FREE_TIME:
-            if statusId != STOP_TIME:
+            if statusId == BET_TIME:
                 # calibrate time
                 if not clockCalibrated:
                     frameBufferList[-1]["leftTime"] = get_time_ocr(ocrResult["leftTime"])
                     timeBuffer = [frameBufferList[0]["leftTime"], frameBufferList[1]["leftTime"], frameBufferList[2]["leftTime"]]
                     if clock_calibration_hit(timeBuffer):
-                        print("Clock calibration hit! --> %d" %(frameBufferList[-1]["leftTime"]))
                         clockCalibrationTag = time_converter.get_current_unix_time()
                         clockCalibrated = True
+                        print("Clock calibration hit! %d --> %d" %(time_converter.get_current_left_time(), frameBufferList[-1]["leftTime"]))
                         info["leftTime"] = time_converter.get_current_left_time(frameBufferList[-1]["leftTime"], True)
                     else:
                         info["leftTime"] = return_valid_time(timeBuffer)
