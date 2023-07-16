@@ -35,7 +35,7 @@ AddTigerBetPosition = (1650, 550)
 BetSize = (1000000, 100000, 10000, 1000, 100)
 
 WINNER_ARRAY = ["龙","和","虎"]
-frameQueue = Queue(maxsize=30)
+frameQueue = Queue(maxsize=15)
 infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
 
@@ -515,7 +515,8 @@ def frame_source_process(frameQueue: Queue, realTime: bool = True):
             try:
                 frameQueue.put(frame, block=not realTime)
             except queue.Full:
-                print("Computation side too slow! Dropping frame...")
+                frameQueue.get()
+                frameQueue.put(frame, block=not realTime)
         else:
             break
     cap.release()
