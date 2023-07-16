@@ -9,6 +9,7 @@ import queue
 import remote_control
 import random
 import time
+import time_converter
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -67,6 +68,8 @@ FREE_TIME = 0
 BET_TIME = 1
 STOP_TIME = 2
 UNKNOWN_TIME = 3
+
+CALIBRATION_LIMIT = 120
 
 BET_SIZE = 100
 
@@ -517,12 +520,30 @@ def frame_source_process(frameQueue: Queue, realTime: bool = True):
             break
     cap.release()
     print("Frame Reader terminated!")
+
+def clock_calibration_hit(timeBuffer: list[int]) -> bool:
+    if timeBuffer[2] == timeBuffer[0] - 1:
+        if timeBuffer[0] == timeBuffer[1] or timeBuffer[1] == timeBuffer[2]:
+            if timeBuffer[2] <= 14 and timeBuffer[2] >= 0:
+                return True
+    return False
+
+def return_valid_time(timeBuffer: list[int]) -> int:
+    if timeBuffer[0] == timeBuffer[1] or timeBuffer[0] == timeBuffer[2]:
+        return timeBuffer[0]
     
+    if timeBuffer[1] == timeBuffer[2]:
+        return timeBuffer[1]
+    
+    return -1
+
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
     frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
-    
+    clockCalibrated = False
+    clockCalibrationTag = 0
     while True:
+        
         frame = frameQueue.get()
         if frame is None:
             infoQueue.put(None)
@@ -533,13 +554,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         binarizedFrame = binarizePillow(originalFrame, 150)
         
-        # submit ocr task
-        submit_bet_ocr(binarizedFrame, chineseOcrQueue)
-        submit_time_ocr(binarizedFrame, englishOcrQueue)
+        # submit status task
+        # submit_bet_ocr(binarizedFrame, chineseOcrQueue)
         submit_status_ocr(binarizedFrame, chineseOcrQueue)
         
-        # get_winner
-        winner = get_winner(originalFrame)
         
         # update frameBufferList
         frameBufferList = frameBufferList[1:]
@@ -547,8 +565,44 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         info = get_info_template()
         ocrResult = {}
         
-        # collect ocr result
-        for i in range(6):
+        # collect statusId ocr result
+        for i in range(2):
+            result = ocrResultQueue.get()
+            ocrResult[result[0]] = result[1]
+        
+        
+        statusId = get_status_ocr(sideStatusTxt=ocrResult["sideStatus"], centerStatusTxt=ocrResult["centerStatus"])
+
+        frameBufferList[-1]["statusId"] = statusId
+        info["statusId"] = statusId
+        
+                
+        resultCount = 0
+        if statusId != FREE_TIME:
+            if statusId != STOP_TIME:
+                if clockCalibrated:
+                    frameBufferList[-1]["leftTime"] = time_converter.get_current_left_time()
+                    info["leftTime"] = frameBufferList[-1]["leftTime"]
+                else:
+                    submit_time_ocr(binarizedFrame, englishOcrQueue)
+                    resultCount += 1
+                    
+            if statusId != UNKNOWN_TIME:
+                submit_bet_ocr(binarizedFrame, chineseOcrQueue)
+                resultCount += 3
+                
+        # get_winner
+        winner = get_winner(originalFrame)
+        info["winner"] = winner
+        
+        # invalidate clock calibration if necessary
+        if clockCalibrated and statusId == FREE_TIME:
+            if time_converter.get_current_unix_time() - clockCalibrationTag >= CALIBRATION_LIMIT:
+                print("Clock calibration invalidated!")
+                clockCalibrated = False
+        
+        # collect for other ocr results
+        for i in range(resultCount):
             result = ocrResultQueue.get()
             ocrResult[result[0]] = result[1]
         
@@ -556,17 +610,22 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             print("Fatal Error! Unknown remaining result!")
             break
         
-        statusId = get_status_ocr(sideStatusTxt=ocrResult["sideStatus"], centerStatusTxt=ocrResult["centerStatus"])
-
-        frameBufferList[-1]["statusId"] = statusId
-        info["statusId"] = statusId
-        info["winner"] = winner
         
         if statusId != FREE_TIME:
             if statusId != STOP_TIME:
-                frameBufferList[-1]["leftTime"] = get_time_ocr(ocrResult["leftTime"])
-                info["leftTime"] = frameBufferList[-1]["leftTime"]
-            
+                # calibrate time
+                if not clockCalibrated:
+                    frameBufferList[-1]["leftTime"] = get_time_ocr(ocrResult["leftTime"])
+                    timeBuffer = [frameBufferList[0]["leftTime"], frameBufferList[1]["leftTime"], frameBufferList[2]["leftTime"]]
+                    if clock_calibration_hit(timeBuffer):
+                        print("Clock calibration hit! --> %d" %(frameBufferList[-1]["leftTime"]))
+                        clockCalibrationTag = time_converter.get_current_unix_time()
+                        clockCalibrated = True
+                        info["leftTime"] = time_converter.get_current_left_time(frameBufferList[-1]["leftTime"], True)
+                    else:
+                        info["leftTime"] = return_valid_time(timeBuffer)
+                        
+            # get bet
             if statusId != UNKNOWN_TIME:
                 frameBufferList[-1]["currentBet"] = get_bet_ocr(dragonBetTxt=ocrResult["dragonBet"], equalBetTxt=ocrResult["equalBet"], tigerBetTxt=ocrResult["tigerBet"])
                 info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
