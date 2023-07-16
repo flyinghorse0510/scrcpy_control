@@ -10,6 +10,7 @@ import remote_control
 import random
 import time
 import time_converter
+import sys
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -517,6 +518,7 @@ def frame_source_process(frameQueue: Queue, realTime: bool = True):
             except queue.Full:
                 frameQueue.get()
                 frameQueue.put(frame, block=not realTime)
+                sys.stderr.write("Computation side too slow! Dropping buffered frame...")
         else:
             break
     cap.release()
