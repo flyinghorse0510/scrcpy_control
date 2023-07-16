@@ -518,7 +518,8 @@ def frame_source_process(frameQueue: Queue, realTime: bool = True):
             except queue.Full:
                 frameQueue.get()
                 frameQueue.put(frame, block=not realTime)
-                sys.stderr.write("Computation side too slow! Dropping buffered frame...")
+                sys.stderr.write("Computation side too slow! Dropping buffered frame...\n")
+                sys.stderr.flush()
         else:
             break
     cap.release()
