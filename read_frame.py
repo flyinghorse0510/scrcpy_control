@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from multiprocessing import Process
 from multiprocessing import Queue
+from multiprocessing import Lock
 from tesserocr import PyTessBaseAPI, PSM
 from tesserocr import get_languages
 import queue
@@ -70,9 +71,15 @@ BET_TIME = 1
 STOP_TIME = 2
 UNKNOWN_TIME = 3
 
+DRAGON_SIDE = 0
+TIGER_SIDE = 1
+NONE_SIDE = 2
+
 CALIBRATION_LIMIT = 120
 
 BET_SIZE = 100
+
+BASE_BET_RATIO = 0.6
 
 totalBet = 1000
 totalGameCount = 0
@@ -87,7 +94,9 @@ currentLeftTime = 15
 currentWaitFrame = 0
 expectedLeastBet = [0, 0]
 currentSelfBet = [0, 0]
+currentExpectedBet = [0, 0]
 currentState = FREE_STATE
+currentBetChoice = NONE_SIDE
 
 realTime = True
 
@@ -249,54 +258,119 @@ def remote_add_tiger_bet(targetBet: int) -> int:
             return ret
     return 0
 
-def add_bet(bet: list[int], remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True) -> bool:
+BetRatio1stLevel = [0.75, 0.95, 1.20]
+BetRatio2ndLevel = [0.70, 0.95, 1.25]
+BetRatio3rdLevel = [0.60, 1.0, 1.50]
+def get_bet_ratio(bet: int, level: int = 0) -> float:
+    if bet >= 60000000:
+        return BetRatio1stLevel[level]
+    if bet >= 30000000 and bet < 60000000:
+        return BetRatio2ndLevel[level]
+    if bet >= 10000000 and bet < 30000000:
+        return BetRatio3rdLevel[level]
+
+BetAdditionList = [remote_add_dragon_bet, remote_add_tiger_bet]
+def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool = True) -> bool:
     global currentLeftTime
     global expectedLeastBet
     global currentSelfBet
     global currentLeftTime
+    global currentBetChoice
+    global currentExpectedBet
     minBet = min(bet[0], bet[2])
     maxBet = max(bet[0], bet[2])
-    if not remoteCompleteQueue.empty():
-        return
-    if (currentLeftTime > 1 and maxBet >= BET_FIRST_THRESHOLD) or (currentLeftTime <= 1 and maxBet >= BET_SECOND_THRESHOLD):
-        if maxBet * REVERT_RATIO_LOWER_LIMIT > minBet:
-            betRatio = random.uniform(REVERT_RATIO_LOWER_LIMIT+0.05, REVERT_RATIO_UPPER_LIMIT)
-            try:
-                if bet[0] < bet[2]:
-                    if realTime and expectedLeastBet[0] < minBet:
-                        expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
-                        if expectedBet == 0:
-                            return
-                        expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
-                        expectedLeastBet[0] = minBet + expectedBet
-                        currentSelfBet[0] += expectedBet
-                        expectedBetCount = int(expectedBet / BET_SIZE)
-                        remoteCmd = [remote_switch_bet, BET_SIZE]
-                        for i in range(expectedBetCount):
-                            remoteCmd.append(remote_add_dragon_bet)
-                            remoteCmd.append(BET_SIZE)
-                        remoteQueue.put(remoteCmd, block=False)
-                        remoteCompleteQueue.put(False)
-                        print("remote_add_dragon_bet: %.2lf (dragon_bet: %d, tiger_bet: %d, ratio: %.4lf)" %(expectedBet, bet[0], bet[2], betRatio))
-                else:
-                    if realTime and expectedLeastBet[1] < minBet:
-                        expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
-                        if expectedBet == 0:
-                            return
-                        expectedBet = min(expectedBet, currentLeftTime * BET_SIZE * 6)
-                        expectedLeastBet[1] = minBet + expectedBet
-                        currentSelfBet[1] += expectedBet
-                        expectedBetCount = int(expectedBet / BET_SIZE)
-                        remoteCmd = [remote_switch_bet, BET_SIZE]
-                        for i in range(expectedBetCount):
-                            remoteCmd.append(remote_add_tiger_bet)
-                            remoteCmd.append(BET_SIZE)
-                        remoteQueue.put(remoteCmd, block=False)
-                        remoteCompleteQueue.put(False)
-                        print("remote_add_tiger_bet: %.2lf (dragon_bet: %d, tiger_bet: %d, ratio: %.4lf)" %(expectedBet, bet[0], bet[2], betRatio))
-            except queue.Full:
-                print("Fatal Error! REMOTE QUEUE FULL!")
-                return False
+    minIndex = DRAGON_SIDE if minBet == bet[0] else TIGER_SIDE
+    maxIndex = 1 - minIndex
+    if currentBetChoice == NONE_SIDE:
+        betRatio = get_bet_ratio(maxBet)
+        if maxBet * betRatio > minBet:
+            expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
+            currentExpectedBet[minIndex] = expectedBet
+            if expectedBet == 0:
+                return
+            expectedLeastBet[minIndex] = minBet + expectedBet
+            print("Current expected bet: Dragon-->%.2lf, Tiger-->%.2lf (dragon_bet: %d, tiger_bet: %d)" %(currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
+            remoteCmd = [BetAdditionList[minIndex], BET_SIZE]
+            # trigger bet
+            remoteQueue.put(remoteCmd)
+            currentBetChoice = minIndex
+            currentSelfBet[minIndex] += BET_SIZE
+    else:
+        currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[1]
+        currentOppoBet = bet[1] if currentBetChoice == DRAGON_SIDE else bet[0]
+        lowestBetRatio = get_bet_ratio(currentOppoBet)
+        mediumBetRatio = get_bet_ratio(currentOppoBet, 1)
+        highestBetRatio = get_bet_ratio(currentOppoBet, 2)
+        # [BET] < lowest bet ratio, continue add bet
+        if currentOppoBet * lowestBetRatio > currentChoiceBet:
+            # stop current-oppo-choice side
+            expectedLeastBet[1-currentBetChoice] = expectedLeastBet[1-currentBetChoice] - currentExpectedBet[1-currentBetChoice] + currentSelfBet[1-currentBetChoice]
+            currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
+            # continue add bet(enlarge scale)
+            if currentChoiceBet >= expectedLeastBet[currentBetChoice]:
+                expectedBet = int((currentOppoBet * lowestBetRatio - currentChoiceBet) / BET_SIZE) * BET_SIZE
+                currentExpectedBet[currentBetChoice] += expectedBet
+                expectedLeastBet[currentBetChoice] = currentChoiceBet + expectedBet
+                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+            # add bet(keep scale)
+            if currentSelfBet[currentChoiceBet] < currentExpectedBet[currentChoiceBet]:
+                # trigger bet
+                lockSuccess = remoteLock.acquire(block=False)
+                if lockSuccess:
+                    remoteCmd = [BetAdditionList[currentBetChoice], BET_SIZE]
+                    remoteQueue.put(remoteCmd)
+                    currentSelfBet[currentBetChoice] += BET_SIZE
+                    remoteLock.release()
+        # lowest bet ratio < [BET] < medium bet ratio
+        elif currentOppoBet * mediumBetRatio > currentChoiceBet:
+            # stop both-current-side
+            expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
+            currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
+            expectedLeastBet[1-currentBetChoice] = expectedLeastBet[1-currentBetChoice] - currentExpectedBet[1-currentBetChoice] + currentSelfBet[1-currentBetChoice]
+            currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
+            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+        # medium bet ratio < [BET] < highest bet ratio
+        elif currentOppoBet * highestBetRatio > currentChoiceBet:
+            # stop current-bet-choice side
+            expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
+            currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
+            # continue add bet(enlarge scale)
+            if currentOppoBet >= expectedLeastBet[1-currentBetChoice]:
+                expectedBet = int((currentChoiceBet / mediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
+                currentExpectedBet[1-currentBetChoice] += expectedBet
+                expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
+                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+            # add bet(keep scale)
+            if currentSelfBet[currentBetChoice] > currentSelfBet[1-currentBetChoice] and currentSelfBet[1-currentBetChoice] > currentExpectedBet[1-currentBetChoice]:
+                lockSuccess = remoteLock.acquire(block=False)
+                if lockSuccess:
+                    remoteCmd = [BetAdditionList[1-currentBetChoice], BET_SIZE]
+                    remoteQueue.put(remoteCmd)
+                    currentSelfBet[1-currentBetChoice] += BET_SIZE
+                    remoteLock.release()
+        # [BET] > highest bet ratio
+        elif currentChoiceBet >= currentOppoBet * highestBetRatio:
+            # stop current-bet-choice side
+            expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
+            currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
+            # continue add bet(enlarge scale)
+            if currentOppoBet >= expectedLeastBet[1-currentBetChoice]:
+                expectedBet = int((currentChoiceBet / highestBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
+                currentExpectedBet[1-currentBetChoice] += expectedBet
+                expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
+                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+            # add bet(keep scale)
+            if currentSelfBet[1-currentBetChoice] > currentExpectedBet[1-currentBetChoice]:
+                lockSuccess = remoteLock.acquire(block=False)
+                if lockSuccess:
+                    remoteCmd = [BetAdditionList[1-currentBetChoice], BET_SIZE]
+                    remoteQueue.put(remoteCmd)
+                    currentSelfBet[1-currentBetChoice] += BET_SIZE
+                    remoteLock.release()
+        else:
+            print("Add bet fatal error!")
+            return False
+        
     return True
 
 def returnValidMedium(buffer: list[int]) -> int:
@@ -329,6 +403,8 @@ def clean_game():
     global currentWaitFrame
     global currentSelfBet
     global expectedLeastBet
+    global currentBetChoice
+    global currentExpectedBet
     currentDragonBet = 0
     currentTigerBet = 0
     currentEqualBet = 0
@@ -336,7 +412,20 @@ def clean_game():
     currentWaitFrame = 0
     currentSelfBet = [0, 0]
     expectedLeastBet = [0, 0]
+    currentExpectedBet = [0, 0]
+    currentBetChoice = NONE_SIDE
+
+#                   0          1        2          3         4         5         6         7         8         9        10
+EnterBetLimit = [10000000, 10000000, 10000000, 10000000, 10000000, 15000000, 20000000, 25000000, 30000000, 35000000, 40000000]
+def enter_bet_state(leftTime: int, deltaBet: int) -> bool:
+    global EnterBetLimit
+    if leftTime >= 11:
+        return False
+    if deltaBet >= EnterBetLimit[leftTime]:
+        return True
     
+    return False
+
 def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True) -> bool:
     global totalGameCount
     global currentWaitFrame
@@ -367,12 +456,14 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteComplete
             
             if statusId == STOP_TIME:
                 currentState = STOP_STATE
-                print("Stop Bet")
+                print("Stop Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                 break
-            elif currentLeftTime <= LEFT_TIME_THRESHOLD and currentLeftTime > 0:
-                currentState = BET_STATE
-                print("Begin Bet")
-                continue
+            elif currentLeftTime >= 0:
+                deltaBet = abs(currentDragonBet - currentTigerBet)
+                if enter_bet_state(currentLeftTime, deltaBet):
+                    currentState = BET_STATE
+                    print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
+                    continue
             else:
                 currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
@@ -473,13 +564,14 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQ
     print("Status Control process terminated!")
         
     
-def remote_control_process(remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue):
+def remote_control_process(remoteQueue: Queue, remoteLock: Lock):
     ret = remote_control.begin_session()
     if ret != 0:
         print("Error start remote session!")
         return
     while True:
         cmd = remoteQueue.get()
+        remoteLock.acquire()
         if cmd is None:
             break
         cmdLength = len(cmd)
@@ -487,19 +579,12 @@ def remote_control_process(remoteQueue: Queue, remoteCompleteQueue: Queue, remot
             break
         cmdLength = int(cmdLength / 2)
         for i in range(cmdLength):
-            if not remoteCancelQueue.empty():
-                print("Bet half canceled!")
-                remoteCancelQueue.get()
-                break
             ret = cmd[2*i](cmd[2*i+1])
             if ret != 0:
                 print("Error execute remote instruction! Skip...")
                 break
-        try:
-            remoteCompleteQueue.get(block=False)
-        except queue.Empty:
-            print("Remote control fatal error!")
-            break
+        remoteLock.release()
+        
         
     remote_control.end_session()
     print("Remote session terminated!")
