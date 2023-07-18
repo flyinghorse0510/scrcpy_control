@@ -473,6 +473,7 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                     currentState = BET_STATE
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                     continue
+                break
             else:
                 currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
