@@ -289,8 +289,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             if expectedBet == 0:
                 return
             expectedLeastBet[minIndex] = minBet + expectedBet
-            print("Current expected bet: Dragon-->%.2lf, Tiger-->%.2lf (dragon_bet: %d, tiger_bet: %d)" %(currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
-            remoteCmd = [BetAdditionList[minIndex], BET_SIZE]
+            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+            remoteCmd = [remote_switch_bet, BET_SIZE, BetAdditionList[minIndex], BET_SIZE]
             # trigger bet
             remoteQueue.put(remoteCmd)
             currentBetChoice = minIndex
@@ -313,7 +313,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 expectedLeastBet[currentBetChoice] = currentChoiceBet + expectedBet
                 print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
             # add bet(keep scale)
-            if currentSelfBet[currentChoiceBet] < currentExpectedBet[currentChoiceBet]:
+            if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice]:
                 # trigger bet
                 lockSuccess = remoteLock.acquire(block=False)
                 if lockSuccess:
