@@ -78,8 +78,8 @@ NONE_SIDE = 2
 CALIBRATION_LIMIT = 120
 
 BET_SIZE = 100
+TEST_BET_SCALE = 10000
 
-BASE_BET_RATIO = 0.6
 
 totalBet = 1000
 totalGameCount = 0
@@ -262,11 +262,11 @@ BetRatio1stLevel = [0.75, 0.95, 1.20]
 BetRatio2ndLevel = [0.70, 0.95, 1.25]
 BetRatio3rdLevel = [0.60, 1.0, 1.50]
 def get_bet_ratio(bet: int, level: int = 0) -> float:
-    if bet >= 60000000:
+    if bet >= 60000000 / TEST_BET_SCALE:
         return BetRatio1stLevel[level]
-    if bet >= 30000000 and bet < 60000000:
+    if bet >= 30000000 / TEST_BET_SCALE and bet < 60000000 / TEST_BET_SCALE:
         return BetRatio2ndLevel[level]
-    if bet >= 10000000 and bet < 30000000:
+    if bet >= 10000000 / TEST_BET_SCALE and bet < 30000000 / TEST_BET_SCALE:
         return BetRatio3rdLevel[level]
 
 BetAdditionList = [remote_add_dragon_bet, remote_add_tiger_bet]
@@ -415,8 +415,18 @@ def clean_game():
     currentExpectedBet = [0, 0]
     currentBetChoice = NONE_SIDE
 
-#                   0          1        2          3         4         5         6         7         8         9        10
-EnterBetLimit = [10000000, 10000000, 10000000, 10000000, 10000000, 15000000, 20000000, 25000000, 30000000, 35000000, 40000000]
+EnterBetLimit = [
+    10000000 / TEST_BET_SCALE, # 0s
+    10000000 / TEST_BET_SCALE, # 1s
+    10000000 / TEST_BET_SCALE, # 2s
+    10000000 / TEST_BET_SCALE, # 3s
+    10000000 / TEST_BET_SCALE, # 4s
+    15000000 / TEST_BET_SCALE, # 5s
+    20000000 / TEST_BET_SCALE, # 6s
+    25000000 / TEST_BET_SCALE, # 7s
+    30000000 / TEST_BET_SCALE, # 8s
+    35000000 / TEST_BET_SCALE, # 9s
+    40000000 / TEST_BET_SCALE] # 10s
 def enter_bet_state(leftTime: int, deltaBet: int) -> bool:
     global EnterBetLimit
     if leftTime >= 11:
@@ -453,13 +463,12 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteComplete
                 break
         elif currentState == WATCH_STATE:
             currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
-            
+            deltaBet = abs(currentDragonBet - currentTigerBet)
             if statusId == STOP_TIME:
                 currentState = STOP_STATE
                 print("Stop Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                 break
             elif currentLeftTime >= 0:
-                deltaBet = abs(currentDragonBet - currentTigerBet)
                 if enter_bet_state(currentLeftTime, deltaBet):
                     currentState = BET_STATE
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
