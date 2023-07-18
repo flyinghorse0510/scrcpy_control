@@ -268,6 +268,7 @@ def get_bet_ratio(bet: int, level: int = 0) -> float:
         return BetRatio2ndLevel[level]
     if bet >= 10000000 / TEST_BET_SCALE and bet < 30000000 / TEST_BET_SCALE:
         return BetRatio3rdLevel[level]
+    return None
 
 BetAdditionList = [remote_add_dragon_bet, remote_add_tiger_bet]
 def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool = True) -> bool:
@@ -283,24 +284,28 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     maxIndex = 1 - minIndex
     if currentBetChoice == NONE_SIDE:
         betRatio = get_bet_ratio(maxBet)
+        if betRatio is None:
+            return True
         if maxBet * betRatio > minBet:
             expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
             currentExpectedBet[minIndex] = expectedBet
             if expectedBet == 0:
-                return
+                return True
             expectedLeastBet[minIndex] = minBet + expectedBet
-            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
             remoteCmd = [remote_switch_bet, BET_SIZE, BetAdditionList[minIndex], BET_SIZE]
             # trigger bet
             remoteQueue.put(remoteCmd)
             currentBetChoice = minIndex
             currentSelfBet[minIndex] += BET_SIZE
+            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
     else:
-        currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[1]
-        currentOppoBet = bet[1] if currentBetChoice == DRAGON_SIDE else bet[0]
+        currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[2]
+        currentOppoBet = bet[2] if currentBetChoice == DRAGON_SIDE else bet[0]
         lowestBetRatio = get_bet_ratio(currentOppoBet)
         mediumBetRatio = get_bet_ratio(currentOppoBet, 1)
         highestBetRatio = get_bet_ratio(currentOppoBet, 2)
+        if lowestBetRatio is None or mediumBetRatio is None or highestBetRatio is None:
+            return True
         # [BET] < lowest bet ratio, continue add bet
         if currentOppoBet * lowestBetRatio > currentChoiceBet:
             # stop current-oppo-choice side
