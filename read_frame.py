@@ -316,7 +316,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 expectedBet = int((currentOppoBet * lowestBetRatio - currentChoiceBet) / BET_SIZE) * BET_SIZE
                 currentExpectedBet[currentBetChoice] += expectedBet
                 expectedLeastBet[currentBetChoice] = currentChoiceBet + expectedBet
-                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+                if expectedBet > 0:
+                    print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
             # add bet(keep scale)
             if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice]:
                 # trigger bet
@@ -333,7 +334,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
             expectedLeastBet[1-currentBetChoice] = expectedLeastBet[1-currentBetChoice] - currentExpectedBet[1-currentBetChoice] + currentSelfBet[1-currentBetChoice]
             currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
-            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+            # print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
         # medium bet ratio < [BET] < highest bet ratio
         elif currentOppoBet * highestBetRatio > currentChoiceBet:
             # stop current-bet-choice side
@@ -344,7 +345,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 expectedBet = int((currentChoiceBet / mediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
                 currentExpectedBet[1-currentBetChoice] += expectedBet
                 expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
-                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+                if expectedBet > 0:
+                    print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
             # add bet(keep scale)
             if currentSelfBet[currentBetChoice] > currentSelfBet[1-currentBetChoice] and currentSelfBet[1-currentBetChoice] > currentExpectedBet[1-currentBetChoice]:
                 lockSuccess = remoteLock.acquire(block=False)
@@ -363,7 +365,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 expectedBet = int((currentChoiceBet / highestBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
                 currentExpectedBet[1-currentBetChoice] += expectedBet
                 expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
-                print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+                if expectedBet > 0:
+                    print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
             # add bet(keep scale)
             if currentSelfBet[1-currentBetChoice] > currentExpectedBet[1-currentBetChoice]:
                 lockSuccess = remoteLock.acquire(block=False)
