@@ -436,7 +436,7 @@ def enter_bet_state(leftTime: int, deltaBet: int) -> bool:
     
     return False
 
-def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True) -> bool:
+def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lock, realTime: bool = True) -> bool:
     global totalGameCount
     global currentWaitFrame
     global currentLeftTime
@@ -489,7 +489,7 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteComplete
                 newDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
                 newEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
                 newTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
-                add_bet([newDragonBet, newEqualBet, newTigerBet], remoteQueue=remoteQueue, remoteCompleteQueue=remoteCompleteQueue, remoteCancelQueue=remoteCancelQueue, realTime = realTime)
+                add_bet([newDragonBet, newEqualBet, newTigerBet], remoteQueue, remoteLock, realTime = realTime)
                 currentDragonBet = newDragonBet
                 currentEqualBet = newEqualBet
                 currentTigerBet = newTigerBet
@@ -560,7 +560,7 @@ def chinese_ocr_process(chineseOcrQueue: Queue, ocrResultQueue: Queue):
     chineseApi.End()
     print("Chinese OCR instance terminated!")
 
-def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQueue: Queue, remoteCancelQueue: Queue, realTime: bool = True):
+def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteLock: Lock, realTime: bool = True):
     print("Status Control process started!")
     recordFile = open("record.csv", "w", encoding='utf-8-sig')
     recordFile.write("局数,龙,和,虎,赢,下注(龙),下注(虎),开牌时间\n")
@@ -569,7 +569,7 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteCompleteQ
         infoDict = infoQueue.get()
         if infoDict is None:
             break
-        process_frame(infoDict, recordFile, remoteQueue, remoteCompleteQueue, remoteCancelQueue, realTime)
+        process_frame(infoDict, recordFile, remoteQueue, remoteLock, realTime)
     print("Status Control process terminated!")
         
     
@@ -742,12 +742,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
 frameQueue = Queue(maxsize=15)
 infoQueue = Queue(maxsize=15)
 remoteQueue = Queue(maxsize=5)
-remoteCompleteQueue = Queue(maxsize=2)
-remoteCancelQueue = Queue(maxsize=2)
 chineseOcrQueue = Queue(maxsize=10)
 englishOcrQueue = Queue(maxsize=10)
 ocrResultQueue = Queue(maxsize=15)
-
+remoteLock = Lock()
 chineseOcrProcessPool = []
 for i in range(NUM_CHINESE_OCR_PROC):
     chineseOcrProcessPool.append(Process(target=chinese_ocr_process, args=(chineseOcrQueue, ocrResultQueue)))
@@ -764,10 +762,10 @@ print("Successfully start english ocr process (%d in total)!" %(NUM_ENGLISH_OCR_
 frameFilterProcess = Process(target=frame_filter_process, args=(frameQueue, infoQueue, chineseOcrQueue, englishOcrQueue, ocrResultQueue))
 frameFilterProcess.start()
 
-statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteCompleteQueue, remoteCancelQueue, realTime))
+statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteLock, realTime))
 statusControlProcess.start()
 
-remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteCompleteQueue, remoteCancelQueue))
+remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteLock))
 remoteControlProcess.start()
 
 frameSourceProcess = Process(target=frame_source_process, args=(frameQueue, realTime))
