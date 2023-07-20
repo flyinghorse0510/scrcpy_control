@@ -35,6 +35,7 @@ Bet100wPosition = (1568, 980)
 AddDragonBetPosition = (780, 550)
 AddTigerBetPosition = (1650, 550)
 BetSize = (1000000, 100000, 10000, 1000, 100)
+DealerBetArea = (1104, 100, 1224, 140)
 
 WINNER_ARRAY = ["龙","和","虎"]
 frameQueue = Queue(maxsize=15)
@@ -97,14 +98,15 @@ currentSelfBet = [0, 0]
 currentExpectedBet = [0, 0]
 currentState = FREE_STATE
 currentBetChoice = NONE_SIDE
+currentDealer = ""
 
 realTime = True
 
 
-infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
+infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN, "currentDealer": ""}
 
 def get_info_template() -> dict:
-    return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN}
+    return {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN, "currentDealer": ""}
 
 
 
@@ -210,6 +212,15 @@ def submit_time_ocr(gameScreen: Image.Image, englishOcrQueue: Queue):
 def get_time_ocr(leftTimeTxt: str) -> int:
     leftTime = pureTxt2int(leftTimeTxt)
     return leftTime
+
+def submit_dealer_ocr(gameScreen: Image.Image, chineseOcrQueue: Queue):
+    dealerBetImg = gameScreen.crop(DealerBetArea)
+    submit_ocr(["dealerBet", dealerBetImg], chineseOcrQueue)
+    
+def get_dealer_ocr(dealerTxt: str) -> str:
+    if dealerTxt.find("888") != -1:
+        return "萌萌哒"
+    return ""
     
 def get_winner(gameScreen: Image.Image) -> int:
     dragonWinImg = gameScreen.crop(DragonWinArea)
@@ -258,9 +269,9 @@ def remote_add_tiger_bet(targetBet: int) -> int:
             return ret
     return 0
 
-BetRatio1stLevel = [0.75, 0.95, 1.20]
-BetRatio2ndLevel = [0.70, 0.95, 1.25]
-BetRatio3rdLevel = [0.60, 1.0, 1.50]
+BetRatio1stLevel = [0.75, 0.9, 1.20]
+BetRatio2ndLevel = [0.70, 0.9, 1.25]
+BetRatio3rdLevel = [0.60, 0.9, 1.50]
 def get_bet_ratio(bet: int, level: int = 0) -> float:
     if bet >= 60000000 / TEST_BET_SCALE:
         return BetRatio1stLevel[level]
@@ -282,8 +293,9 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     maxBet = max(bet[0], bet[2])
     minIndex = DRAGON_SIDE if minBet == bet[0] else TIGER_SIDE
     maxIndex = 1 - minIndex
+    deltaBet = maxBet - minBet
     if currentBetChoice == NONE_SIDE:
-        betRatio = get_bet_ratio(maxBet)
+        betRatio = get_bet_ratio(deltaBet)
         if betRatio is None:
             return True
         if maxBet * betRatio > minBet:
@@ -301,9 +313,9 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     else:
         currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[2]
         currentOppoBet = bet[2] if currentBetChoice == DRAGON_SIDE else bet[0]
-        lowestBetRatio = get_bet_ratio(currentOppoBet)
-        mediumBetRatio = get_bet_ratio(currentOppoBet, 1)
-        highestBetRatio = get_bet_ratio(currentOppoBet, 2)
+        lowestBetRatio = get_bet_ratio(deltaBet)
+        mediumBetRatio = get_bet_ratio(deltaBet, 1)
+        highestBetRatio = get_bet_ratio(deltaBet, 2)
         if lowestBetRatio is None or mediumBetRatio is None or highestBetRatio is None:
             return True
         # [BET] < lowest bet ratio, continue add bet
@@ -328,7 +340,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                     currentSelfBet[currentBetChoice] += BET_SIZE
                     remoteLock.release()
         # lowest bet ratio < [BET] < medium bet ratio
-        elif currentOppoBet * mediumBetRatio > currentChoiceBet:
+        elif currentOppoBet * mediumBetRatio > currentChoiceBet and deltaBet >= 5000000 / TEST_BET_SCALE:
             # stop both-current-side
             expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
@@ -336,13 +348,13 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
             # print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
         # medium bet ratio < [BET] < highest bet ratio
-        elif currentOppoBet * highestBetRatio > currentChoiceBet:
+        elif currentOppoBet * highestBetRatio > currentChoiceBet or deltaBet < 5000000 / TEST_BET_SCALE:
             # stop current-bet-choice side
             expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
             # continue add bet(enlarge scale)
             if currentOppoBet >= expectedLeastBet[1-currentBetChoice]:
-                expectedBet = int((currentChoiceBet / mediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
+                expectedBet = max(int((currentChoiceBet / mediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE, int((5000000 / TEST_BET_SCALE - deltaBet) / BET_SIZE) * BET_SIZE)
                 currentExpectedBet[1-currentBetChoice] += expectedBet
                 expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
                 if expectedBet > 0:
@@ -413,6 +425,7 @@ def clean_game():
     global expectedLeastBet
     global currentBetChoice
     global currentExpectedBet
+    global currentDealer
     currentDragonBet = 0
     currentTigerBet = 0
     currentEqualBet = 0
@@ -422,6 +435,7 @@ def clean_game():
     expectedLeastBet = [0, 0]
     currentExpectedBet = [0, 0]
     currentBetChoice = NONE_SIDE
+    currentDealer = ""
 
 EnterBetLimit = [
     10000000 / TEST_BET_SCALE, # 0s
@@ -453,11 +467,13 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
     global currentEqualBet
     global currentTigerBet
     global currentSelfBet
+    global currentDealer
         
     statusId = infoDict["statusId"]
     leftTime = infoDict["leftTime"]
     currentBet = infoDict["currentBet"]
     winner = infoDict["winner"]
+    currentDealer = currentDealer if currentDealer == "萌萌哒" else infoDict["currentDealer"]
     
     while True:
         if currentState == FREE_STATE:
@@ -465,6 +481,14 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 break
             elif statusId == BET_TIME:
                 print("<<<<<<<< Game Count: %d >>>>>>>>" %(totalGameCount+1))
+                if currentDealer == "萌萌哒":
+                    print("Current Dealer: 萌萌哒 --> NORMAL MODE")
+                else:
+                    print("******** WARNING: UNKNOWN DEALER ********")
+                    print("*****************************************")
+                    print("WATCH ONLY MODE")
+                    print("*****************************************")
+                    print("******** WARNING: UNKNOWN DEALER ********")
                 currentState = WATCH_STATE
                 continue
             else:
@@ -477,7 +501,7 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 print("Stop Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                 break
             elif currentLeftTime >= 0:
-                if enter_bet_state(currentLeftTime, deltaBet):
+                if enter_bet_state(currentLeftTime, deltaBet) and currentDealer == "萌萌哒":
                     currentState = BET_STATE
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                     continue
@@ -694,6 +718,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             if statusId != UNKNOWN_TIME:
                 submit_bet_ocr(binarizedFrame, chineseOcrQueue)
                 resultCount += 3
+        else:
+            if frameBufferList[-2]["currentDealer"] != "萌萌哒":
+                submit_dealer_ocr(binarizedFrame, chineseOcrQueue)
+                resultCount += 1
                 
         # get_winner
         winner = get_winner(originalFrame)
@@ -737,6 +765,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
                 info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
                 info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
+        else:
+            dealer = get_dealer_ocr(ocrResult["dealerBet"])
+            frameBufferList[-1]["currentDealer"] = dealer
+            info["currentDealer"] = dealer
         try:    
             infoQueue.put(info, block=False)
         except:
