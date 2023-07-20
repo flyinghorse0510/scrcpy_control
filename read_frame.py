@@ -99,6 +99,9 @@ currentExpectedBet = [0, 0]
 currentState = FREE_STATE
 currentBetChoice = NONE_SIDE
 currentDealer = ""
+currentLowestBetRatio = None
+currentMediumBetRatio = None
+currentHighestBetRatio = None
 
 realTime = True
 
@@ -289,6 +292,9 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     global currentLeftTime
     global currentBetChoice
     global currentExpectedBet
+    global currentLowestBetRatio
+    global currentMediumBetRatio
+    global currentHighestBetRatio
     minBet = min(bet[0], bet[2])
     maxBet = max(bet[0], bet[2])
     minIndex = DRAGON_SIDE if minBet == bet[0] else TIGER_SIDE
@@ -309,23 +315,23 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             remoteQueue.put(remoteCmd)
             currentBetChoice = minIndex
             currentSelfBet[minIndex] += BET_SIZE
+            currentLowestBetRatio = get_bet_ratio(deltaBet)
+            currentMediumBetRatio = get_bet_ratio(deltaBet, 1)
+            currentHighestBetRatio = get_bet_ratio(deltaBet, 2)
             print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
     else:
         currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[2]
         currentOppoBet = bet[2] if currentBetChoice == DRAGON_SIDE else bet[0]
-        lowestBetRatio = get_bet_ratio(deltaBet)
-        mediumBetRatio = get_bet_ratio(deltaBet, 1)
-        highestBetRatio = get_bet_ratio(deltaBet, 2)
-        if lowestBetRatio is None or mediumBetRatio is None or highestBetRatio is None:
+        if currentLowestBetRatio is None or currentMediumBetRatio is None or currentHighestBetRatio is None:
             return True
         # [BET] < lowest bet ratio, continue add bet
-        if currentOppoBet * lowestBetRatio > currentChoiceBet:
+        if currentOppoBet * currentLowestBetRatio > currentChoiceBet:
             # stop current-oppo-choice side
             expectedLeastBet[1-currentBetChoice] = expectedLeastBet[1-currentBetChoice] - currentExpectedBet[1-currentBetChoice] + currentSelfBet[1-currentBetChoice]
             currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
             # continue add bet(enlarge scale)
             if currentChoiceBet >= expectedLeastBet[currentBetChoice]:
-                expectedBet = int((currentOppoBet * lowestBetRatio - currentChoiceBet) / BET_SIZE) * BET_SIZE
+                expectedBet = int((currentOppoBet * currentLowestBetRatio - currentChoiceBet) / BET_SIZE) * BET_SIZE
                 currentExpectedBet[currentBetChoice] += expectedBet
                 expectedLeastBet[currentBetChoice] = currentChoiceBet + expectedBet
                 if expectedBet > 0:
@@ -340,7 +346,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                     currentSelfBet[currentBetChoice] += BET_SIZE
                     remoteLock.release()
         # lowest bet ratio < [BET] < medium bet ratio
-        elif currentOppoBet * mediumBetRatio > currentChoiceBet and deltaBet >= 5000000 / TEST_BET_SCALE:
+        elif currentOppoBet * currentMediumBetRatio > currentChoiceBet and deltaBet >= 5000000 / TEST_BET_SCALE:
             # stop both-current-side
             expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
@@ -348,13 +354,13 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             currentExpectedBet[1-currentBetChoice] = currentSelfBet[1-currentBetChoice]
             # print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
         # medium bet ratio < [BET] < highest bet ratio
-        elif currentOppoBet * highestBetRatio > currentChoiceBet or deltaBet < 5000000 / TEST_BET_SCALE:
+        elif currentOppoBet * currentHighestBetRatio > currentChoiceBet or deltaBet < 5000000 / TEST_BET_SCALE:
             # stop current-bet-choice side
             expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
             # continue add bet(enlarge scale)
             if currentOppoBet >= expectedLeastBet[1-currentBetChoice]:
-                expectedBet = max(int((currentChoiceBet / mediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE, int((5000000 / TEST_BET_SCALE - deltaBet) / BET_SIZE) * BET_SIZE)
+                expectedBet = max(int((currentChoiceBet / currentMediumBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE, int((5000000 / TEST_BET_SCALE - deltaBet) / BET_SIZE) * BET_SIZE)
                 currentExpectedBet[1-currentBetChoice] += expectedBet
                 expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
                 if expectedBet > 0:
@@ -368,13 +374,13 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                     currentSelfBet[1-currentBetChoice] += BET_SIZE
                     remoteLock.release()
         # [BET] > highest bet ratio
-        elif currentChoiceBet >= currentOppoBet * highestBetRatio:
+        elif currentChoiceBet >= currentOppoBet * currentHighestBetRatio:
             # stop current-bet-choice side
             expectedLeastBet[currentBetChoice] = expectedLeastBet[currentBetChoice] - currentExpectedBet[currentBetChoice] + currentSelfBet[currentBetChoice]
             currentExpectedBet[currentBetChoice] = currentSelfBet[currentBetChoice]
             # continue add bet(enlarge scale)
             if currentOppoBet >= expectedLeastBet[1-currentBetChoice]:
-                expectedBet = int((currentChoiceBet / highestBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
+                expectedBet = int((currentChoiceBet / currentHighestBetRatio - currentOppoBet) / BET_SIZE) * BET_SIZE
                 currentExpectedBet[1-currentBetChoice] += expectedBet
                 expectedLeastBet[1-currentBetChoice] = currentOppoBet + expectedBet
                 if expectedBet > 0:
@@ -426,6 +432,9 @@ def clean_game():
     global currentBetChoice
     global currentExpectedBet
     global currentDealer
+    global currentLowestBetRatio
+    global currentMediumBetRatio
+    global currentHighestBetRatio
     currentDragonBet = 0
     currentTigerBet = 0
     currentEqualBet = 0
@@ -436,6 +445,10 @@ def clean_game():
     currentExpectedBet = [0, 0]
     currentBetChoice = NONE_SIDE
     currentDealer = ""
+    currentLowestBetRatio = None
+    currentMediumBetRatio = None
+    currentHighestBetRatio = None
+    
 
 EnterBetLimit = [
     10000000 / TEST_BET_SCALE, # 0s
