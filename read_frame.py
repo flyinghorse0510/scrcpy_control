@@ -722,6 +722,8 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             if frameBufferList[-2]["currentDealer"] != "萌萌哒":
                 submit_dealer_ocr(binarizedFrame, chineseOcrQueue)
                 resultCount += 1
+            else:
+                frameBufferList[-1]["currentDealer"] = "萌萌哒"
                 
         # get_winner
         winner = get_winner(originalFrame)
@@ -765,7 +767,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
                 info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
                 info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
-        else:
+        elif frameBufferList[-1]["currentDealer"] != "萌萌哒":
             dealer = get_dealer_ocr(ocrResult["dealerBet"])
             frameBufferList[-1]["currentDealer"] = dealer
             info["currentDealer"] = dealer
