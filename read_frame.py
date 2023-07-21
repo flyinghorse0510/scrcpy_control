@@ -78,8 +78,8 @@ NONE_SIDE = 2
 
 CALIBRATION_LIMIT = 120
 
-BET_SIZE = 1000
-TEST_BET_SCALE = 1000
+BET_SIZE = 100
+TEST_BET_SCALE = 10000
 
 
 totalBet = 1000
@@ -303,16 +303,16 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
             expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
         else:
             expectedBet = 0
-            if expectedBet == 0:
-                return True
-            currentExpectedBet[minIndex] = expectedBet
-            expectedLeastBet[minIndex] = minBet + expectedBet
-            remoteCmd = [remote_switch_bet, BET_SIZE, BetAdditionList[minIndex], BET_SIZE]
-            # trigger bet
-            remoteQueue.put(remoteCmd)
-            currentBetChoice = minIndex
-            currentSelfBet[minIndex] += BET_SIZE
-            print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
+        if expectedBet == 0:
+            return True
+        currentExpectedBet[minIndex] = expectedBet
+        expectedLeastBet[minIndex] = minBet + expectedBet
+        remoteCmd = [remote_switch_bet, BET_SIZE, BetAdditionList[minIndex], BET_SIZE]
+        # trigger bet
+        remoteQueue.put(remoteCmd)
+        currentBetChoice = minIndex
+        currentSelfBet[minIndex] += BET_SIZE
+        print("Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1]))
     else:
         currentChoiceBet = bet[0] if currentBetChoice == DRAGON_SIDE else bet[2]
         currentOppoBet = bet[2] if currentBetChoice == DRAGON_SIDE else bet[0]
