@@ -296,13 +296,13 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     deltaBet = maxBet - minBet
     if currentBetChoice == NONE_SIDE:
         betRatio = get_bet_ratio(deltaBet)
+        expectedBet = 0
         if betRatio is None:
             if deltaBet > 5000000 / TEST_BET_SCALE:
                 expectedBet = int((deltaBet - 5000000 / TEST_BET_SCALE) / BET_SIZE) * BET_SIZE
         elif maxBet * betRatio > minBet:
             expectedBet = int((maxBet * betRatio - minBet) / BET_SIZE) * BET_SIZE
-        else:
-            expectedBet = 0
+            
         if expectedBet == 0:
             return True
         currentExpectedBet[minIndex] = expectedBet
