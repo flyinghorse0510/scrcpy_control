@@ -12,6 +12,7 @@ import random
 import time
 import time_converter
 import sys
+import sline
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -80,6 +81,8 @@ CALIBRATION_LIMIT = 120
 
 BET_SIZE = 100
 TEST_BET_SCALE = 10000
+
+BET_CONFIRM_COUNT = 3
 
 
 totalBet = 1000
@@ -682,9 +685,28 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
     frameBufferList = [get_info_template(), get_info_template(), get_info_template()]
     clockCalibrated = False
     clockCalibrationTag = 0
+    lastInfo = get_info_template()
+    lastFrameTime = time.time()
+    dragonBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
+    equalBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
+    tigerBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
+    
     while True:
-        
-        frame = frameQueue.get()
+        try:
+            frame = frameQueue.get(block=False)
+        except queue.Empty:
+            deltaTime = time.time() - lastFrameTime
+            if deltaTime >= 0.032:
+                try:
+                    infoQueue.put(lastInfo, block=False)
+                except queue.Full:
+                    print("Status control too slow! Dropping info...")
+                lastFrameTime = time.time()
+            time.sleep(0.001)
+            continue
+                
+                
+        lastFrameTime = time.time()
         if frame is None:
             infoQueue.put(None)
             chineseOcrQueue.put(None)
@@ -735,6 +757,9 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 resultCount += 1
             else:
                 frameBufferList[-1]["currentDealer"] = "萌萌哒"
+            dragonBetFilter.reset_support_line()
+            equalBetFilter.reset_support_line()
+            tigerBetFilter.reset_support_line()
                 
         # get_winner
         winner = get_winner(originalFrame)
@@ -775,14 +800,15 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             # get bet
             if statusId != UNKNOWN_TIME:
                 frameBufferList[-1]["currentBet"] = get_bet_ocr(dragonBetTxt=ocrResult["dragonBet"], equalBetTxt=ocrResult["equalBet"], tigerBetTxt=ocrResult["tigerBet"])
-                info["currentBet"][0] = returnValidMedium([frameBufferList[0]["currentBet"][0], frameBufferList[1]["currentBet"][0], frameBufferList[2]["currentBet"][0]])
-                info["currentBet"][1] = returnValidMedium([frameBufferList[0]["currentBet"][1], frameBufferList[1]["currentBet"][1], frameBufferList[2]["currentBet"][1]])
-                info["currentBet"][2] = returnValidMedium([frameBufferList[0]["currentBet"][2], frameBufferList[1]["currentBet"][2], frameBufferList[2]["currentBet"][2]])
+                info["currentBet"][0] = dragonBetFilter.update_support_line(frameBufferList[-1]["currentBet"][0])
+                info["currentBet"][1] = equalBetFilter.update_support_line(frameBufferList[-1]["currentBet"][1])
+                info["currentBet"][2] = tigerBetFilter.update_support_line(frameBufferList[-1]["currentBet"][2])
         elif frameBufferList[-1]["currentDealer"] != "萌萌哒":
             dealer = get_dealer_ocr(ocrResult["dealerBet"])
             frameBufferList[-1]["currentDealer"] = dealer
             info["currentDealer"] = dealer
-        try:    
+        try:
+            lastInfo = info.copy()
             infoQueue.put(info, block=False)
         except:
             print("Status control too slow! Dropping info...")
