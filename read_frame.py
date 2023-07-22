@@ -82,7 +82,7 @@ CALIBRATION_LIMIT = 120
 BET_SIZE = 100
 TEST_BET_SCALE = 10000
 
-BET_CONFIRM_COUNT = 3
+BET_CONFIRM_COUNT = 4
 
 
 totalBet = 1000
@@ -696,8 +696,12 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             frame = frameQueue.get(block=False)
         except queue.Empty:
             deltaTime = time.time() - lastFrameTime
-            if deltaTime >= 0.032:
+            if deltaTime >= 0.036:
                 try:
+                    if infoQueue["statusId"] != FREE_TIME and infoQueue["statusId"] != UNKNOWN_TIME:
+                        lastInfo["currentBet"][0] = dragonBetFilter.update_support_line(frameBufferList[-1]["currentBet"][0])
+                        lastInfo["currentBet"][1] = equalBetFilter.update_support_line(frameBufferList[-1]["currentBet"][1])
+                        lastInfo["currentBet"][2] = tigerBetFilter.update_support_line(frameBufferList[-1]["currentBet"][2])
                     infoQueue.put(lastInfo, block=False)
                 except queue.Full:
                     print("Status control too slow! Dropping info...")
