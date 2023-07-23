@@ -698,7 +698,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             deltaTime = time.time() - lastFrameTime
             if deltaTime >= 0.036:
                 try:
-                    if infoQueue["statusId"] != FREE_TIME and infoQueue["statusId"] != UNKNOWN_TIME:
+                    if lastInfo["statusId"] != FREE_TIME and lastInfo["statusId"] != UNKNOWN_TIME:
                         lastInfo["currentBet"][0] = dragonBetFilter.update_support_line(frameBufferList[-1]["currentBet"][0])
                         lastInfo["currentBet"][1] = equalBetFilter.update_support_line(frameBufferList[-1]["currentBet"][1])
                         lastInfo["currentBet"][2] = tigerBetFilter.update_support_line(frameBufferList[-1]["currentBet"][2])
