@@ -12,7 +12,7 @@ import random
 import time
 import time_converter
 import sys
-import sline
+import support_line as sline
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -82,7 +82,7 @@ CALIBRATION_LIMIT = 120
 BET_SIZE = 100
 TEST_BET_SCALE = 10000
 
-BET_CONFIRM_COUNT = 4
+BET_CONFIRM_COUNT = 5
 
 
 totalBet = 1000
@@ -104,7 +104,7 @@ currentBetChoice = NONE_SIDE
 currentDealer = ""
 
 realTime = True
-
+MAX_INT_NUMBER = 1000000000
 
 infoTemplate = {"leftTime": -1, "statusId": UNKNOWN_TIME, "currentBet": [-1, -1, -1], "myBet": [-1, -1], "winner": NONE_WIN, "currentDealer": ""}
 
@@ -131,6 +131,7 @@ def txt2int(txt: str) -> int:
     except ValueError as e:
         number = -1
     
+    number = number if number < MAX_INT_NUMBER else -1
     return number
 
 def is_chinese(txt: str) -> bool:
@@ -154,7 +155,8 @@ def pureTxt2int(txt: str) -> int:
         number = int(txt)
     except ValueError as e:
         number = -1
-    
+        
+    number = number if number < MAX_INT_NUMBER else -1
     return number
 
 def cleanStr(txt: str) -> str:
@@ -198,7 +200,7 @@ def submit_bet_ocr(gameScreen: Image.Image, chineseOcrQueue: Queue):
     submit_ocr(["equalBet", equalBetImg], chineseOcrQueue)
     submit_ocr(["tigerBet", tigerBetImg], chineseOcrQueue)
     
-def get_bet_ocr(dragonBetTxt: str, equalBetTxt: str, tigerBetTxt: str) -> tuple[int, int, int]:
+def get_bet_ocr(dragonBetTxt: str, equalBetTxt: str, tigerBetTxt: str) -> list[int, int, int]:
     # Dragon Bet(Left)
     dragonBet = txt2int(dragonBetTxt)
     # Equal Bet(Center)
@@ -206,7 +208,7 @@ def get_bet_ocr(dragonBetTxt: str, equalBetTxt: str, tigerBetTxt: str) -> tuple[
     # Tiger Bet(Right)
     tigerBet = txt2int(tigerBetTxt)
     # Result
-    return (dragonBet, equalBet, tigerBet)
+    return [dragonBet, equalBet, tigerBet]
     
 def submit_time_ocr(gameScreen: Image.Image, englishOcrQueue: Queue):
     leftTimeImg = gameScreen.crop(LeftTimeArea)
