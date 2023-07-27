@@ -31,10 +31,13 @@ public:
             return _supportPoint;
         }
 
+        std::fprintf(stderr, "Support point: %lld, Buffer point: %lld, Buffer count: %lld, Measure point: %lld\n", _supportPoint, _bufferPoint, _bufferCount, measurePoint);
+        std::fflush(stderr);
+
         if (measurePoint < _supportPoint)
         {
-            std::fprintf(stderr, "[SUPPORT LINE WARNING]: Support point: %lld, Buffer point: %lld, Buffer count: %lld, Measure point: %lld\n", _supportPoint, _bufferPoint, _bufferCount, measurePoint);
-            std::fflush(stderr);
+            // std::fprintf(stderr, "[SUPPORT LINE WARNING]: Support point: %lld, Buffer point: %lld, Buffer count: %lld, Measure point: %lld\n", _supportPoint, _bufferPoint, _bufferCount, measurePoint);
+            // std::fflush(stderr);
             return _supportPoint;
         }
 
@@ -79,8 +82,8 @@ public:
             return _supportPoint;
         }
 
-        std::fprintf(stdout, "[SUPPORT LINE FATAL ERROR]: Unbounded situation!\nSupport point: %lld, Buffer point: %lld, Buffer count: %lld, Measure point: %lld\n", _supportPoint, _bufferPoint, _bufferCount, measurePoint);
-        std::fflush(stdout);
+        // std::fprintf(stdout, "[SUPPORT LINE FATAL ERROR]: Unbounded situation!\nSupport point: %lld, Buffer point: %lld, Buffer count: %lld, Measure point: %lld\n", _supportPoint, _bufferPoint, _bufferCount, measurePoint);
+        // std::fflush(stdout);
         return _supportPoint;
     }
 
