@@ -120,7 +120,12 @@ def txt2int(txt: str) -> int:
     
     try:
         number = int(float(realTxt) * multi + 0.5)
-    except ValueError as e:
+    except ValueError as e1:
+        number = -1
+    except OverflowError as e2:
+        number = -1
+    except:
+        print("Convert Error!")
         number = -1
     
     number = number if number < MAX_INT_NUMBER else -1
@@ -146,6 +151,9 @@ def pureTxt2int(txt: str) -> int:
     try:
         number = int(txt)
     except ValueError as e:
+        number = -1
+    except:
+        print("Convert Error!")
         number = -1
         
     number = number if number < MAX_INT_NUMBER else -1
