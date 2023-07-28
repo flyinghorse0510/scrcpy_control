@@ -513,15 +513,15 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                     currentState = BET_STATE
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                     continue
-                if currentBet[0] < currentDragonBet:
+                if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
-                if currentBet[1] < currentEqualBet:
+                if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
-                if currentBet[2] < currentTigerBet:
+                if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
-                currentDragonBet = int(currentBet[0] / 100) * 100
-                currentEqualBet = int(currentBet[1] / 100) * 100
-                currentTigerBet = int(currentBet[2] / 100) * 100
+                currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
+                currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
+                currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
                 break
         elif currentState == BET_STATE:
             currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
@@ -531,15 +531,15 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 print("Stop Bet")
                 continue
             else:
-                if currentBet[0] < currentDragonBet:
+                if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
-                if currentBet[1] < currentEqualBet:
+                if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
-                if currentBet[2] < currentTigerBet:
+                if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
                     print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
-                currentDragonBet = int(currentBet[0] / 100) * 100
-                currentEqualBet = int(currentBet[1] / 100) * 100
-                currentTigerBet = int(currentBet[2] / 100) * 100
+                currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
+                currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
+                currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
                 add_bet([currentDragonBet, currentEqualBet, currentTigerBet], remoteQueue, remoteLock, realTime = realTime)
                 break
         elif currentState == STOP_STATE:
@@ -548,9 +548,15 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 print("Wait Result")
                 break
             else:
-                currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
-                currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
-                currentTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
+                if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
+                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
+                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
+                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
+                currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
+                currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
                 break
         elif currentState == RESULT_STATE:
             # if not remoteCompleteQueue.empty():
