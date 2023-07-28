@@ -60,14 +60,6 @@ EQUAL_WIN = 1
 TIGER_WIN = 2
 NONE_WIN = 3
 
-LEFT_TIME_THRESHOLD = 5
-WAIT_FRAME_THRESHOLD = 0
-
-BET_FIRST_THRESHOLD = 3000
-BET_SECOND_THRESHOLD = 1000
-REVERT_RATIO_UPPER_LIMIT = 0.6
-REVERT_RATIO_LOWER_LIMIT = 0.5
-
 FREE_TIME = 0
 BET_TIME = 1
 STOP_TIME = 2
@@ -82,7 +74,7 @@ CALIBRATION_LIMIT = 120
 BET_SIZE = 100
 TEST_BET_SCALE = 10000
 
-BET_CONFIRM_COUNT = 5
+BET_CONFIRM_COUNT = 6
 
 
 totalBet = 1000
@@ -521,9 +513,15 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                     currentState = BET_STATE
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                     continue
-                currentDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
-                currentEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
-                currentTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
+                if currentBet[0] < currentDragonBet:
+                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                if currentBet[1] < currentEqualBet:
+                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                if currentBet[2] < currentTigerBet:
+                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                currentDragonBet = int(currentBet[0] / 100) * 100
+                currentEqualBet = int(currentBet[1] / 100) * 100
+                currentTigerBet = int(currentBet[2] / 100) * 100
                 break
         elif currentState == BET_STATE:
             currentLeftTime = currentLeftTime if leftTime < 0 or leftTime > currentLeftTime else leftTime
@@ -533,13 +531,16 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 print("Stop Bet")
                 continue
             else:
-                newDragonBet = currentDragonBet if currentBet[0] <= currentDragonBet else int(currentBet[0] / 100) * 100
-                newEqualBet = currentEqualBet if currentBet[1] <= currentEqualBet else int(currentBet[1] / 100) * 100
-                newTigerBet = currentTigerBet if currentBet[2] <= currentTigerBet else int(currentBet[2] / 100) * 100
-                add_bet([newDragonBet, newEqualBet, newTigerBet], remoteQueue, remoteLock, realTime = realTime)
-                currentDragonBet = newDragonBet
-                currentEqualBet = newEqualBet
-                currentTigerBet = newTigerBet
+                if currentBet[0] < currentDragonBet:
+                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                if currentBet[1] < currentEqualBet:
+                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                if currentBet[2] < currentTigerBet:
+                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                currentDragonBet = int(currentBet[0] / 100) * 100
+                currentEqualBet = int(currentBet[1] / 100) * 100
+                currentTigerBet = int(currentBet[2] / 100) * 100
+                add_bet([currentDragonBet, currentEqualBet, currentTigerBet], remoteQueue, remoteLock, realTime = realTime)
                 break
         elif currentState == STOP_STATE:
             if statusId == UNKNOWN_TIME:
