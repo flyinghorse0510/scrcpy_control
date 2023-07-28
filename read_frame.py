@@ -522,11 +522,14 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                     print("Begin Bet --> Time: %d, Delta: %d" %(currentLeftTime, deltaBet))
                     continue
                 if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.flush()
                 if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.flush()
                 if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.flush()
                 currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
                 currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
@@ -540,11 +543,14 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 continue
             else:
                 if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.flush()
                 if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.flush()
                 if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.flush()
                 currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
                 currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
@@ -557,11 +563,14 @@ def process_frame(infoDict: dict, recordFile, remoteQueue: Queue, remoteLock: Lo
                 break
             else:
                 if currentBet[0] < currentDragonBet and currentBet[0] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentDragonBet, currentBet[0]))
+                    sys.stderr.flush()
                 if currentBet[1] < currentEqualBet and currentBet[1] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentEqualBet, currentBet[1]))
+                    sys.stderr.flush()
                 if currentBet[2] < currentTigerBet and currentBet[2] >= 0:
-                    print("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.write("[RESCUE]: %d --> %d" %(currentTigerBet, currentBet[2]))
+                    sys.stderr.flush()
                 currentDragonBet = currentDragonBet if currentBet[0] < 0 else int(currentBet[0] / 100) * 100
                 currentEqualBet = currentEqualBet if currentBet[1] < 0 else int(currentBet[1] / 100) * 100
                 currentTigerBet = currentTigerBet if currentBet[2] < 0 else int(currentBet[2] / 100) * 100
