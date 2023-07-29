@@ -34,7 +34,7 @@ public:
 
     long long update_support_line(long long measurePoint)
     {
-        if (measurePoint < 0)
+        if (measurePoint <= 0)
         {
             return _supportPoint;
         }
