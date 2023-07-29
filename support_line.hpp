@@ -12,7 +12,7 @@ public:
     long long _supportPoint;
     long long _minConfirmCount;
     long long _increMinConfirmCount;
-    SupportLine(long long minConfirmCount = 5)
+    SupportLine(long long minConfirmCount = 8)
     {
         _primaryBufferPoint = 0;
         _primaryBufferCount = 0;
@@ -36,6 +36,14 @@ public:
     {
         if (measurePoint <= 0)
         {
+            return _supportPoint;
+        }
+
+        if (measurePoint % 100 != 0) {
+            return _supportPoint;
+        }
+
+        if (measurePoint - _supportPoint >= 50000000) {
             return _supportPoint;
         }
 
