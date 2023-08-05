@@ -71,8 +71,8 @@ NONE_SIDE = 2
 
 CALIBRATION_LIMIT = 120
 
-BET_SIZE = 100
-TEST_BET_SCALE = 10000
+BET_SIZE = 1000000
+TEST_BET_SCALE = 1
 
 BET_CONFIRM_COUNT = 8
 
@@ -299,6 +299,8 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
     minIndex = DRAGON_SIDE if minBet == bet[0] else TIGER_SIDE
     maxIndex = 1 - minIndex
     deltaBet = maxBet - minBet
+    currentSelfDeltaBet = abs(currentSelfBet[0] - currentSelfBet[1])
+    betUnderLimit = True if currentSelfDeltaBet <= 20000000 else False
     if currentBetChoice == NONE_SIDE:
         betRatio = get_bet_ratio(deltaBet)
         expectedBet = 0
@@ -338,7 +340,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 expectedLeastBet[currentBetChoice] = currentChoiceBet + expectedBet
                 if expectedBet > 0:
                     print("#[Minimum]# Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d, current_dragon_bet: %d, current_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
-            if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice]:
+            if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice] and betUnderLimit:
                 # trigger bet
                 lockSuccess = remoteLock.acquire(block=False)
                 if lockSuccess:
@@ -361,7 +363,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 if expectedBet > 0:
                     print("#[Lowest]# Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d, current_dragon_bet: %d, current_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
             # add bet(keep scale)
-            if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice]:
+            if currentSelfBet[currentBetChoice] < currentExpectedBet[currentBetChoice] and betUnderLimit:
                 # trigger bet
                 lockSuccess = remoteLock.acquire(block=False)
                 if lockSuccess:
@@ -390,7 +392,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 if expectedBet > 0:
                     print("#[Medium]# Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d, current_dragon_bet: %d, current_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
             # add bet(keep scale)
-            if currentSelfBet[currentBetChoice] > currentSelfBet[1-currentBetChoice] and currentSelfBet[1-currentBetChoice] < currentExpectedBet[1-currentBetChoice]:
+            if currentSelfBet[currentBetChoice] > currentSelfBet[1-currentBetChoice] and currentSelfBet[1-currentBetChoice] < currentExpectedBet[1-currentBetChoice] and betUnderLimit:
                 lockSuccess = remoteLock.acquire(block=False)
                 if lockSuccess:
                     remoteCmd = [BetAdditionList[1-currentBetChoice], BET_SIZE]
@@ -410,7 +412,7 @@ def add_bet(bet: list[int], remoteQueue: Queue, remoteLock: Lock, realTime: bool
                 if expectedBet > 0:
                     print("#[Highest]# Current bet: Dragon-->%.2lf, Tiger-->%.2lf (expected_dragon_bet: %d, expected_tiger_bet: %d, current_dragon_bet: %d, current_tiger_bet: %d)" %(currentSelfBet[0], currentSelfBet[1], currentExpectedBet[0], currentExpectedBet[1], bet[0], bet[2]))
             # add bet(keep scale)
-            if currentSelfBet[1-currentBetChoice] < currentExpectedBet[1-currentBetChoice]:
+            if currentSelfBet[1-currentBetChoice] < currentExpectedBet[1-currentBetChoice] and betUnderLimit:
                 lockSuccess = remoteLock.acquire(block=False)
                 if lockSuccess:
                     remoteCmd = [BetAdditionList[1-currentBetChoice], BET_SIZE]
