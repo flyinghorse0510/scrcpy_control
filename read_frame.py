@@ -13,6 +13,7 @@ import time
 import time_converter
 import sys
 import support_line as sline
+import utils
 
 tessPSM = PSM.SINGLE_LINE
 tessL = "chi_sim"
@@ -628,8 +629,8 @@ def chinese_ocr_process(chineseOcrQueue: Queue, ocrResultQueue: Queue):
             chineseOcrQueue.put(None)
             break
         chineseApi.SetImage(task[1])
-        englishTxt = cleanStr(chineseApi.GetUTF8Text())
-        ocrResultQueue.put([task[0], englishTxt])
+        chineseTxt = cleanStr(chineseApi.GetUTF8Text())
+        ocrResultQueue.put([task[0], chineseTxt])
     chineseApi.End()
     print("Chinese OCR instance terminated!")
 

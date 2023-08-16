@@ -54,3 +54,14 @@ def cleanStr(txt: str) -> str:
 def binarizePillow(img: Image.Image, threshold: int) -> Image.Image:
     outputImg = ImageOps.grayscale(img)
     return outputImg.point(lambda x: 0 if x > threshold else 255)
+
+def truncateUntilNumber(txt: str) -> str:
+    txtLength = len(txt)
+    for i in range(txtLength):
+        if txt[i] <= "9" and txt[i] >= "0":
+            return txt[i:]
+    return ""
+
+def revertBinarizePillow(img: Image.Image, threshold: int) -> Image.Image:
+    outputImg = ImageOps.grayscale(img)
+    return outputImg.point(lambda x: 0 if x <= threshold else 255)
