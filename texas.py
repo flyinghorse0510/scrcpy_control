@@ -35,6 +35,37 @@ PlayerStatusAreaArray = (
     (1608, 24, 1758, 68)
 )
 
+PlayerCalibrationPointArray = (
+    (749, 253),
+    (408, 384),
+    (350, 713),
+    (640, 906),
+    (1170, 906),
+    (1701, 906),
+    (1989, 713),
+    (1930, 384),
+    (1591, 253)
+)
+
+PlayerStatusBlockOffset = ()
+PlayerStatusBlockSize = ()
+
+EmptySeatBlockOffset = ()
+EmptySeatBlockSize = ()
+
+PlayerCardRankBlockOffset = (
+    (),
+    ()
+)
+PlayerCardRankBlockSize = ()
+
+PlayerCardSuitBlockOffset = (
+    (),
+    ()
+)
+PlayerCardSuitBlockSize = ()
+
+
 CardCharacterAreaArray = (
     (878, 448, 930, 508),
     (1032, 448, 1084, 508),
@@ -84,8 +115,8 @@ def card_test(imgPath: str, cardRank: int = 0) -> bool:
     binarizedCardCharacterImg.save("./tmp/binarizedCardCharacter_%d.png" %(cardRank))
     cardSuitImg.save("./tmp/cardSuit_%d.png" %(cardRank))
     
-    englishCharacterApi.SetImage(binarizedCardCharacterImg)
-    englishChar = utils.cleanStr(englishCharacterApi.GetUTF8Text())
+    englishApi.SetImage(binarizedCardCharacterImg)
+    englishChar = utils.cleanStr(englishApi.GetUTF8Text())
     
     
     suit = texas_suit.findSuit(cardSuitImg)
