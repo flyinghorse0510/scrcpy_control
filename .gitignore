@@ -6,3 +6,4 @@ tiger_video
 *.png
 *.jpg
 tmp
+__pycache__
