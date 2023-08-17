@@ -51,17 +51,24 @@ def pureTxt2int(txt: str) -> int:
 def cleanStr(txt: str) -> str:
     return txt.replace(" ", "").replace("-","").replace("一","").strip("\n")
 
-def binarizePillow(img: Image.Image, threshold: int) -> Image.Image:
+def binarize_pillow(img: Image.Image, threshold: int) -> Image.Image:
     outputImg = ImageOps.grayscale(img)
     return outputImg.point(lambda x: 0 if x > threshold else 255)
 
-def truncateUntilNumber(txt: str) -> str:
+def filter_until_number(txt: str) -> str:
     txtLength = len(txt)
     for i in range(txtLength):
         if txt[i] <= "9" and txt[i] >= "0":
             return txt[i:]
     return ""
 
-def revertBinarizePillow(img: Image.Image, threshold: int) -> Image.Image:
+def card_rank_replace(rankTxt: str) -> str:
+    replacedTxt = rankTxt.replace("O", "9").replace("T", "7").replace("?", "2")
+    finalTxt = ""
+    
+    return replacedTxt
+    
+
+def revert_binarize_pillow(img: Image.Image, threshold: int) -> Image.Image:
     outputImg = ImageOps.grayscale(img)
     return outputImg.point(lambda x: 0 if x <= threshold else 255)

@@ -19,7 +19,7 @@ SUIT_CLUB = 1
 SUIT_HEART = 2
 SUIT_DIAMOND = 3
 
-MAX_VALID_DISTANCE = 300000
+MAX_VALID_DISTANCE = 320000
 
 SuitSymbolArray = (
     "♠",
@@ -38,7 +38,7 @@ SuitRef = (
     SuitHeartRef,
     SuitDiamondRef
 )
-def findSuit(img: Image.Image) -> int:
+def find_suit(img: Image.Image) -> int:
     imgArray = np.array(img)
     distanceArray = np.zeros(4, dtype=np.float32)
     for i in range(4):
