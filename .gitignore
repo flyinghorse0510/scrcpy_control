@@ -3,7 +3,6 @@ control
 tiger_video
 *.so
 *.mp4
-*.png
 *.jpg
 tmp
 __pycache__

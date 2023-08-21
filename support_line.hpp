@@ -1,3 +1,5 @@
+#ifndef _SUPPORT_LINE_HPP
+#define _SUPPORT_LINE_HPP
 #include <cstdio>
 
 
@@ -12,6 +14,7 @@ public:
     long long _supportPoint;
     long long _minConfirmCount;
     long long _increMinConfirmCount;
+    long long _lastPoint;
     SupportLine(long long minConfirmCount = 8)
     {
         _primaryBufferPoint = 0;
@@ -21,6 +24,7 @@ public:
         _supportPoint = 0;
         _minConfirmCount = minConfirmCount;
         _increMinConfirmCount = (minConfirmCount + 1) / 2;
+        _lastPoint = 0;
     }
 
     void reset_support_line(void)
@@ -30,10 +34,12 @@ public:
         _auxiliaryBufferPoint = 0;
         _auxiliaryBufferCount = 0;
         _supportPoint = 0;
+        _lastPoint = 0;
     }
 
     long long update_support_line(long long measurePoint)
     {
+        _lastPoint = measurePoint;
         if (measurePoint <= 0)
         {
             return _supportPoint;
@@ -163,4 +169,67 @@ public:
     long long get_support_point(void) {
         return _supportPoint;
     }
+
+    long long update_with_last_point(void) {
+        return this->update_support_line(_lastPoint);
+    }
 };
+
+class RankLine {
+    public:
+        long long _minConfirmCount;
+        int _rankCountArray[13];
+        long long _rankResult;
+        long long _lastRank;
+        bool reset;
+        RankLine(long long minConfirmCount = 5) {
+            for (int i = 0; i < 13; i++) {
+                _rankCountArray[i] = 0;
+            }
+            _minConfirmCount = minConfirmCount;
+            _rankResult = -1;
+            _lastRank = -1;
+            reset = true;
+        }
+        void reset_rank(void) {
+            if (reset) {
+                return;
+            }
+
+            for (int i = 0; i < 13; i++) {
+                _rankCountArray[i] = 0;
+            }
+            _rankResult = -1;
+            _lastRank = -1;
+            reset = true;
+        }
+
+        long long get_rank(void) {
+            return _rankResult;
+        }
+
+        long long update_rank(long long rank) {
+            reset = false;
+            _lastRank = rank;
+            if (rank < 0 || rank > 12) {
+                return _rankResult;
+            }
+
+            if (_rankResult > -1) {
+                return _rankResult;
+            }
+
+            if (++(_rankCountArray[rank]) >= _minConfirmCount) {
+                _rankResult = rank;
+                return _rankResult;
+            }
+            
+            return _rankResult;
+        }
+
+        long long update_with_last_rank(void) {
+            return this->update_rank(_lastRank);
+        }
+};
+
+#endif

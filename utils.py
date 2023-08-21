@@ -48,7 +48,7 @@ def pureTxt2int(txt: str) -> int:
     number = number if number < MAX_INT_NUMBER else -1
     return number
 
-def cleanStr(txt: str) -> str:
+def clean_str(txt: str) -> str:
     return txt.replace(" ", "").replace("-","").replace("一","").strip("\n")
 
 def binarize_pillow(img: Image.Image, threshold: int) -> Image.Image:

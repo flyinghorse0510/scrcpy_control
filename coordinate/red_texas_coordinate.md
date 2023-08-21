@@ -61,19 +61,11 @@ Calibration Point:
 - 8th:`(1930, 384)`
 - 9th:`(1591, 253)`
 
-<!-- ### 2.1 Status
-Block Size: `(150,44)`
-- 1st:`(768, 24, 918, 68)`
-- 2nd:`(424, 154, 574, 198)`
-- 3rd:`(368, 484, 518, 528)`
-- 4th:`(658, 678, 808, 722)`
-- 5th:`(1192, 678, 1342, 722)`
-- 6th:`(1720, 678, 1870, 722)`
-- 7th:`(2008, 484, 2158, 528)`
-- 8th:`(1948, 154, 2098, 198)`
-- 9th:`(1608, 24, 1758, 68)` -->
-
-
 ## 3. Template Region
-Player Size Out-Bound: `(208, 296)`
-Player Size Inner-Bound: `(168, 268)`
+- Player Size Out-Bound: `(208, 296)`
+- Player Size Inner-Bound: `(168, 268)`
+
+- Experimental Empty Seat Filter Range: `(22, 100, 100)` ==> `(45, 255, 255)`
+- Experimental User Thinking Filter Range: `(84, 100, 100)` ==> `(114, 255, 255)`
+- Experimental User Fold Filter Range: `(0, 8, 38)` ==> `(180, 76, 90)`
+- Experimental User All-in Filter Range: `()` ==> `()`
