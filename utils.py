@@ -1,6 +1,6 @@
 from PIL import Image, ImageOps
 
-MAX_INT_NUMBER = 1000000000
+MAX_INT_NUMBER = 3000000000
 
 def txt2int(txt: str) -> int:
     if len(txt) == 0:

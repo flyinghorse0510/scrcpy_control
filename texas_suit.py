@@ -19,7 +19,7 @@ SUIT_CLUB = 1
 SUIT_HEART = 2
 SUIT_DIAMOND = 3
 
-MAX_VALID_DISTANCE = 320000
+MAX_VALID_DISTANCE = 220000
 
 SuitSymbolArray = (
     "♠",
@@ -45,5 +45,6 @@ def find_suit(img: Image.Image) -> int:
         distanceArray[i] = np.power((SuitRef[i] - imgArray).flatten(), 2).sum()
     minDistance = np.min(distanceArray)
     minIndex = np.argmin(distanceArray)
+    # print(distanceArray)
     minIndex = minIndex if minDistance <= MAX_VALID_DISTANCE else SUIT_UNKNOWN
     return minIndex

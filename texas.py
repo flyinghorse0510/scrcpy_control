@@ -55,8 +55,8 @@ STATUS_FOURTH_ROUND = 4
 STATUS_END = 5
 STATUS_NULL = -1
 
-NUM_ENGLISH_OCR_PROC = 1
-NUM_CHINESE_OCR_PROC = 1
+NUM_ENGLISH_OCR_PROC = 5
+NUM_CHINESE_OCR_PROC = 2
 
 BottomBetArea = (1084, 300, 1440, 340)
 GameBeginArea = (1106, 484, 1430, 532)
@@ -68,6 +68,7 @@ remoteQueue = Queue(maxsize=100)
 
 gameStatus = STATUS_NULL
 playerList = []
+playerActionList = []
 playerBet = []
 gameInfo = {"smallBlind": -1, "largeBlind": -1, "smallBlindIndex": -1, "largeBlindIndex": -1, "playerBottomBet": -1}
 bottomBet = -1
@@ -397,7 +398,7 @@ def get_card_rank(cardRankTxt: str) -> int:
             rank = int(filteredCardRankTxt) - 1
             return rank
         except:
-            print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
+            # print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
             return CARD_RANK_UNKNOWN
     if filteredCardRankTxt == "A":
         return CARD_RANK_A
@@ -408,13 +409,19 @@ def get_card_rank(cardRankTxt: str) -> int:
     elif filteredCardRankTxt == "K":
         return CARD_RANK_K
     
-    print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
+    # print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
     return CARD_RANK_UNKNOWN
 
 def get_player_status(playerStatusImg: Image.Image) -> int:
-    
     if texas_activated.empty_seat_activated(playerStatusImg):
         return PLAYER_EMPTY
+    if texas_activated.user_fold_activated(playerStatusImg):
+        return PLAYER_FOLD
+    if texas_activated.user_thinking_activated(playerStatusImg):
+        return PLAYER_THINKING
+    if texas_activated.user_all_in_activated(playerStatusImg):
+        return PLAYER_ALL_IN
+    return PLAYER_NULL
 
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
@@ -533,11 +540,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 info["playerStatus"][i] = playerStatus
                 if playerStatus == PLAYER_EMPTY or playerStatus == PLAYER_FOLD:
                     continue
-            
-            # Bet
-            if not info["playerBet"] and info["playerStatus"][i] != PLAYER_EMPTY and info["playerStatus"][i] != PLAYER_FOLD:
-                info["playerBet"] = texas_activated.player_bet_activated(originalFrame.crop(PlayerBetArray[i]))
-                            
+                        
             # Player Card and Suit
             for j in range(2):
                 if info["playerCardSuit"][i][j] == texas_suit.SUIT_UNKNOWN:
@@ -546,6 +549,19 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 if info["playerCardSuit"][i][j] != texas_suit.SUIT_UNKNOWN and info["playerCardRank"][i][j] == CARD_RANK_UNKNOWN:
                     submit_card_rank_ocr(originalFrame.crop(PlayerCardRankArray[i][j]), englishOcrQueue, "player_%d%d" %(i, j))
                     ocrResultCount += 1
+
+        # Player Initial Bet
+        playerBetValid = False
+        for i in range(9):
+            if info["playerStatus"][i] == PLAYER_THINKING:
+                playerBetValid = True
+                break
+
+        if playerBetValid:
+            for i in range(9):
+                # Bet
+                if (not info["playerBet"][i]) and info["playerStatus"][i] != PLAYER_EMPTY and info["playerStatus"][i] != PLAYER_FOLD:
+                    info["playerBet"][i] = texas_activated.player_bet_activated(originalFrame.crop(PlayerBetArray[i]))
             
         # Public
         for i in range(5):
@@ -572,10 +588,22 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             if key[:6] == "player":
                 i = int(key[7])
                 j = int(key[8])
-                info["playerCardRank"][i][j] = playerRankFilterArray[i][j].update_rank(get_card_rank(ocrResult[key]))
+                rank = get_card_rank(ocrResult[key])
+                if rank != CARD_RANK_UNKNOWN:
+                    info["playerCardRank"][i][j] = playerRankFilterArray[i][j].update_rank(rank)
+                else:
+                    info["playerCardSuit"][i][j] = infoBuffer["playerCardSuit"][i][j]
+                # if rank == CARD_RANK_UNKNOWN:
+                #     originalFrame.crop(PlayerCardRankArray[i][j]).save("./tmp/unrecognized_player_rank.png")
             elif key[:6] == "public":
                 i = int(key[7])
-                info["publicCardRank"][i] = publicRankFilterArray[i].update_rank(get_card_rank(ocrResult[key]))
+                rank = get_card_rank(ocrResult[key])
+                if rank != CARD_RANK_UNKNOWN:
+                    info["publicCardRank"][i] = publicRankFilterArray[i].update_rank(rank)
+                else:
+                    info["publicCardSuit"][i] = infoBuffer["publicCardSuit"][i]
+                # if rank == CARD_RANK_UNKNOWN:
+                #     originalFrame.crop(PlayerCardRankArray[i][j]).save("./tmp/unrecognized_public_rank.png")
         
         # Check Queue
         if not ocrResultQueue.empty():
@@ -625,11 +653,13 @@ def find_last_player(currentPlayerIndex: int, totalPlayer: int) -> int:
 
 def clean_game() -> bool:
     global playerList
+    global playerActionList
     global playerBet
     global gameInfo
     global bottomBet
     global currentPlayerIndex
     playerList = []
+    playerActionList = []
     playerBet = []
     gameInfo = {"smallBlind": -1, "largeBlind": -1, "smallBlindIndex": -1, "largeBlindIndex": -1, "playerBottomBet": -1}
     bottomBet = -1
@@ -639,6 +669,7 @@ def clean_game() -> bool:
 def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQueue: Queue, remoteLock: Lock, realTime: bool = True) -> bool:
     global gameStatus
     global playerList
+    global playerActionList
     global playerBet
     global gameInfo
     global bottomBet
@@ -652,7 +683,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
     currentGameInfo = infoDict["gameInfo"]
     while True:
         if gameStatus == STATUS_NULL:
-            print("[%s] %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet))
+            # print("[%s] %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet))
             if gameBeginActivated and not bottomBetActivated:
                 gameStatus = STATUS_WAIT_FOR_BEGIN
                 print("<<<<<<<<< %d >>>>>>>>>" %(totalRoundCount + 1))
@@ -661,14 +692,22 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 continue
             break
         elif gameStatus == STATUS_WAIT_FOR_BEGIN:
+            # print("[%s] %d %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet, playerStatus[5]))
+            # print("[%s] %d %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), currentGameInfo["smallBlind"], currentGameInfo["largeBlind"], currentGameInfo["playerBottomBet"]))
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
                 bottomBet = currentBottomBet
-                for i in range(9):
-                    if len(playerList) == 0 and playerStatus[8-i] != PLAYER_EMPTY:
-                        playerList.append(8-i)
-                        playerBet.append(-1)
-                    if playerStatus[8-i] == PLAYER_THINKING:
-                        currentPlayerIndex = 8 - i
+                
+                if len(playerList) == 0:
+                    # Construct Player List
+                    for i in range(9):
+                        if playerStatus[8-i] != PLAYER_EMPTY and playerStatus[8-i] != PLAYER_FOLD:
+                            playerList.append(8-i)
+                            playerBet.append(-1)
+                else:
+                    # Find First Player
+                    for i in range(len(playerList)):
+                        if playerStatus[playerList[i]] == PLAYER_THINKING:
+                            currentPlayerIndex = i
                 
                 if valid_game_info(currentGameInfo) and (not valid_game_info(gameInfo)):
                     gameInfo["largeBlind"] = currentGameInfo["largeBlind"]
@@ -680,24 +719,27 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     gameInfo["smallBlindIndex"] = find_last_player(gameInfo["largeBlindIndex"], len(playerList))
                     
                     totalBet = 0
-                    for i in range(9):
-                        if playerStatus[i] != PLAYER_EMPTY and playerStatus[i] != PLAYER_FOLD:
-                            if currentplayerBet[i]:
+                    for i in range(len(playerList)):
+                        if playerStatus[playerList[i]] != PLAYER_EMPTY and playerStatus[playerList[i]] != PLAYER_FOLD:
+                            if currentplayerBet[playerList[i]]:
                                 playerBet[i] = gameInfo["largeBlind"]
                                 totalBet += gameInfo["largeBlind"]
                             totalBet += gameInfo["playerBottomBet"]
                     
                     while totalBet < bottomBet:
                         totalBet += gameInfo["playerBottomBet"]
-                    
-                    if totalBet != bottomBet:
-                        if totalBet - bottomBet == gameInfo["smallBlind"]:
-                            playerBet[gameInfo["smallBlindIndex"]] = gameInfo["smallBlind"]
-                        else:
-                            print("Fatal Bet Detection Error! Process Frame Terminated!")
-                            return False
+                    # print(playerList)
+                    # print(playerBet)
+                    # print(currentplayerBet)
+                    # print(totalBet)
+                    # print(bottomBet)
+                    if bottomBet % gameInfo["largeBlind"] != 0: 
+                        playerBet[gameInfo["smallBlindIndex"]] = gameInfo["smallBlind"]
+                    if totalBet != bottomBet and totalBet - bottomBet != gameInfo["smallBlind"]:
+                        print("[%s] Warning! Bottom Bet Mismatch!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+
                     print(
-                        "[%s] Game Started!\n[\n\tPlayer Count: %d\n\tSmall Blind: %d\n\tLarge Blind: %d\n\tBottom Bet: %d\n]\n"
+                        "[%s] Game Started!\n[\n\tPlayer Count: %d\n\tSmall Blind: %d\n\tLarge Blind: %d\n\tBottom Bet: %d\n\tPlayer Bet: "
                         %(
                             time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
                             len(playerList),
@@ -706,16 +748,23 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                             gameInfo["playerBottomBet"]
                         )
                     )
+                    print(playerBet)
+                    print("\tPlayer Action List: ")
+                    print(playerActionList)
+                    print("]")
                     gameStatus = STATUS_FIRST_ROUND
+                    for i in range(len(playerList)):
+                        
                     return True
             break
-        # elif gameStatus == STATUS_FIRST_ROUND:
-            
+        
+        elif gameStatus == STATUS_FIRST_ROUND:
+            return False
         # elif gameStatus == STATUS_SECOND_ROUND:
         # elif gameStatus == STATUS_THIRD_ROUND:
         # elif gameStatus == STATUS_FOURTH_ROUND:
         # elif gameStatus == STATUS_END:
-    
+        break
     return True    
 
 def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteLock: Lock, realTime: bool = True):
@@ -725,7 +774,8 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteLock: Loc
         infoDict = infoQueue.get()
         if infoDict is None:
             break
-        process_frame(infoDict, texasRecord, remoteQueue, remoteLock, realTime)
+        if not process_frame(infoDict, texasRecord, remoteQueue, remoteLock, realTime):
+            break
     print("Status Control process terminated!")
 
 frameQueue = Queue(maxsize=15)

@@ -266,9 +266,9 @@ def player_card_test(imgPath: str, playerSeat: int = 0):
     BSuit = texas_suit.find_suit(playerBCardSuitImg)
     if ASuit != texas_suit.SUIT_UNKNOWN and BSuit != texas_suit.SUIT_UNKNOWN:
         englishApi.SetImage(binarizedPlayerACardRankImg)
-        ACardRank = utils.card_rank_replace(utils.cleanStr(englishApi.GetUTF8Text()))
+        ACardRank = utils.card_rank_replace(utils.clean_str(englishApi.GetUTF8Text()))
         englishApi.SetImage(binarizedPlayerBCardRankImg)
-        BCardRank = utils.card_rank_replace(utils.cleanStr(englishApi.GetUTF8Text()))
+        BCardRank = utils.card_rank_replace(utils.clean_str(englishApi.GetUTF8Text()))
         print("Player Seat %d: %s%s, %s%s" %(playerSeat, texas_suit.SuitSymbolArray[ASuit], ACardRank, texas_suit.SuitSymbolArray[BSuit], BCardRank))
     else:
         print("No Cards Found for Player Seat %d!" %(playerSeat))
@@ -338,17 +338,17 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/user_thinking_with_empty_seat.png"
+imgPath = "./texas/final_cards_with_complex_bet.png"
 # game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):
 #     public_card_test(imgPath, i)
 
 for i in range(9):
-    # player_card_test(imgPath, i)
+    player_card_test(imgPath, i)
     # empty_seat_test(imgPath, i)
-    player_status_test(imgPath, i)
-    player_bet_test(imgPath, i)
+    # player_status_test(imgPath, i)
+    # player_bet_test(imgPath, i)
 
 # game_info_test(imgPath)
     
