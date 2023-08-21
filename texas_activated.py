@@ -44,7 +44,10 @@ AllInRef = np.array(Image.open("./imgData/ref_all_in.png"))
 UserThinkingRef = np.array(Image.open("./imgData/ref_user_thinking.png"))
 
 def bottom_bet_activated(img: Image.Image, saveImg: bool = False) -> bool:
-    imgArray = np.array(img)
+    
+    binarizedImg = utils.binarize_pillow(img, 90)
+    
+    imgArray = np.array(binarizedImg)
     weight = 1.0 - imgArray.sum() / (255.0 * imgArray.size)
     # print(weight)
     if weight >= 0.06 and weight <= 0.3:
@@ -53,7 +56,10 @@ def bottom_bet_activated(img: Image.Image, saveImg: bool = False) -> bool:
         return False
     
 def game_begin_activated(img: Image.Image, saveImg: bool = False) -> bool:
-    imgArray = np.array(img)
+    
+    binarizedImg = utils.binarize_pillow(img, 130)
+    
+    imgArray = np.array(binarizedImg)
     weight = 1.0 - imgArray.sum() / (255.0 * imgArray.size)
     # print(weight)
     if weight >= 0.06 and weight <= 0.3:

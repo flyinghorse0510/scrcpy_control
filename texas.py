@@ -55,6 +55,9 @@ STATUS_FOURTH_ROUND = 4
 STATUS_END = 5
 STATUS_NULL = -1
 
+NUM_ENGLISH_OCR_PROC = 1
+NUM_CHINESE_OCR_PROC = 1
+
 BottomBetArea = (1084, 300, 1440, 340)
 GameBeginArea = (1106, 484, 1430, 532)
 GameInfoArea = (894, 636, 1606, 672)
@@ -69,6 +72,7 @@ playerBet = []
 gameInfo = {"smallBlind": -1, "largeBlind": -1, "smallBlindIndex": -1, "largeBlindIndex": -1, "playerBottomBet": -1}
 bottomBet = -1
 currentPlayerIndex = -1
+totalRoundCount = 0
 
 PublicCardCalibrationArray = (
     (875, 452),
@@ -437,27 +441,27 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
     ]
     
     while True:
-        try:
-            frame = frameQueue.get(block=False)
-        except queue.Empty:
-            deltaTime = time.time() - lastFrameTime
-            if deltaTime >= 0.036:
-                try:
-                    # Update player card with last rank
-                    for i in range(9):
-                        for j in range(2):
-                            infoBuffer["playerCardRank"][i][j] = playerRankFilterArray[i][j].update_with_last_rank()
-                    # Update public card with last rank
-                    for i in range(5):
-                        infoBuffer["publicCardRank"] = publicRankFilterArray[i].update_with_last_rank()
+        # try:
+        #     frame = frameQueue.get(block=False)
+        # except queue.Empty:
+        #     deltaTime = time.time() - lastFrameTime
+        #     if deltaTime >= 0.036:
+        #         try:
+        #             # Update player card with last rank
+        #             for i in range(9):
+        #                 for j in range(2):
+        #                     infoBuffer["playerCardRank"][i][j] = playerRankFilterArray[i][j].update_with_last_rank()
+        #             # Update public card with last rank
+        #             for i in range(5):
+        #                 infoBuffer["publicCardRank"][i] = publicRankFilterArray[i].update_with_last_rank()
                         
-                    infoQueue.put(infoBuffer.copy(), block=False)
-                except queue.Full:
-                    print("Status control too slow! Dropping info...")
-                lastFrameTime = time.time()
-            time.sleep(0.001)
-            continue
-        
+        #             infoQueue.put(infoBuffer.copy(), block=False)
+        #         except queue.Full:
+        #             print("Status control too slow! Dropping info...")
+        #         lastFrameTime = time.time()
+        #     time.sleep(0.001)
+        #     continue
+        frame = frameQueue.get(block = True)
         lastFrameTime = time.time()
         if frame is None:
             infoQueue.put(None)
@@ -470,22 +474,27 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         
         gameBeginAreaImg = originalFrame.crop(GameBeginArea)
         bottomBetAreaImg = originalFrame.crop(BottomBetArea)
+        # gameBeginAreaImg.save("./tmp/gameBeginImg.png")
+        # bottomBetAreaImg.save("./tmp/bottomBetAreaImg.png")
         
         gameBeginActivated = texas_activated.game_begin_activated(gameBeginAreaImg)
         bottomBetActivated = texas_activated.bottom_bet_activated(bottomBetAreaImg)
-        
+        info["gameBeginActivated"] = gameBeginActivated
+        info["bottomBetActivated"] = bottomBetActivated
+        # print("[%s] %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated))
         ocrResult = {}
         ocrResultCount = 0
         
         # Game Begin
         if gameBeginActivated and (not bottomBetActivated):
             info = get_info_template()
-            info["gameBeginActivated"] = True
+            info["gameBeginActivated"] = gameBeginActivated
             if valid_game_info(infoBuffer["gameInfo"]):
                 info["gameInfo"] = infoBuffer["gameInfo"].copy()
             else:
-                submit_bottom_bet_ocr(originalFrame.crop(GameInfoArea))
-                ocrResult += 1
+                # Game Info
+                submit_game_info_ocr(originalFrame.crop(GameInfoArea), chineseOcrQueue)
+                ocrResultCount += 1
             
             # reset player card rank
             for i in range(9):
@@ -493,13 +502,13 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                     infoBuffer["playerCardRank"][i][j] = playerRankFilterArray[i][j].reset_rank()
             # reset public card rank
             for i in range(5):
-                infoBuffer["publicCardRank"] = publicRankFilterArray[i].reset_rank()
+                infoBuffer["publicCardRank"][i] = publicRankFilterArray[i].reset_rank()
             
-            for i in range(ocrResult):
+            for i in range(ocrResultCount):
                 result = ocrResultQueue.get()
                 ocrResult[result[0]] = result[1]
             
-            if ocrResult > 0:
+            if ocrResultCount > 0:
                 info["gameInfo"] = get_game_info_ocr(ocrResult["gameInfo"])
             
             infoBuffer = info
@@ -536,16 +545,16 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                     
                 if info["playerCardSuit"][i][j] != texas_suit.SUIT_UNKNOWN and info["playerCardRank"][i][j] == CARD_RANK_UNKNOWN:
                     submit_card_rank_ocr(originalFrame.crop(PlayerCardRankArray[i][j]), englishOcrQueue, "player_%d%d" %(i, j))
-                    ocrResult += 1
+                    ocrResultCount += 1
             
         # Public
         for i in range(5):
             if info["publicCardSuit"][i] == texas_suit.SUIT_UNKNOWN:
                 info["publicCardSuit"][i] = texas_suit.find_suit(originalFrame.crop(PublicCardSuitArray[i]))
             
-            if info["publicCardSuit"][i] != texas_suit.SUIT_UNKNOWN and info["publicCardRank"][i][j] == CARD_RANK_UNKNOWN:
+            if info["publicCardSuit"][i] != texas_suit.SUIT_UNKNOWN and info["publicCardRank"][i] == CARD_RANK_UNKNOWN:
                 submit_card_rank_ocr(originalFrame.crop(PublicCardRankArray[i]), englishOcrQueue, "public_%d" %(i))
-                ocrResult += 1
+                ocrResultCount += 1
                 
         # Collect OCR Results
         for i in range(ocrResultCount):
@@ -634,6 +643,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
     global gameInfo
     global bottomBet
     global currentPlayerIndex
+    global totalRoundCount
     gameBeginActivated = infoDict["gameBeginActivated"]
     bottomBetActivated = infoDict["bottomBetActivated"]
     playerStatus = infoDict["playerStatus"]
@@ -642,12 +652,16 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
     currentGameInfo = infoDict["gameInfo"]
     while True:
         if gameStatus == STATUS_NULL:
+            print("[%s] %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet))
             if gameBeginActivated and not bottomBetActivated:
                 gameStatus = STATUS_WAIT_FOR_BEGIN
+                print("<<<<<<<<< %d >>>>>>>>>" %(totalRoundCount + 1))
+                print("[%s] Waiting for game to begin..." %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+                totalRoundCount += 1
                 continue
             break
         elif gameStatus == STATUS_WAIT_FOR_BEGIN:
-            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet:
+            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
                 bottomBet = currentBottomBet
                 for i in range(9):
                     if len(playerList) == 0 and playerStatus[8-i] != PLAYER_EMPTY:
@@ -682,15 +696,25 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                         else:
                             print("Fatal Bet Detection Error! Process Frame Terminated!")
                             return False
-                            
+                    print(
+                        "[%s] Game Started!\n[\n\tPlayer Count: %d\n\tSmall Blind: %d\n\tLarge Blind: %d\n\tBottom Bet: %d\n]\n"
+                        %(
+                            time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()),
+                            len(playerList),
+                            gameInfo["smallBlind"],
+                            gameInfo["largeBlind"],
+                            gameInfo["playerBottomBet"]
+                        )
+                    )
                     gameStatus = STATUS_FIRST_ROUND
-                    break
-        elif gameStatus == STATUS_FIRST_ROUND:
+                    return True
+            break
+        # elif gameStatus == STATUS_FIRST_ROUND:
             
-        elif gameStatus == STATUS_SECOND_ROUND:
-        elif gameStatus == STATUS_THIRD_ROUND:
-        elif gameStatus == STATUS_FOURTH_ROUND:
-        elif gameStatus == STATUS_END:
+        # elif gameStatus == STATUS_SECOND_ROUND:
+        # elif gameStatus == STATUS_THIRD_ROUND:
+        # elif gameStatus == STATUS_FOURTH_ROUND:
+        # elif gameStatus == STATUS_END:
     
     return True    
 
@@ -704,24 +728,43 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteLock: Loc
         process_frame(infoDict, texasRecord, remoteQueue, remoteLock, realTime)
     print("Status Control process terminated!")
 
-chineseApi = PyTessBaseAPI(psm=tessPSM, lang = tessL)
-englishApi = PyTessBaseAPI(psm=tessPSM, lang = "eng")
-englishCharacterApi = PyTessBaseAPI(psm=tessSingleCharacterPSM, lang = "eng")
+frameQueue = Queue(maxsize=15)
+infoQueue = Queue(maxsize=15)
+remoteQueue = Queue(maxsize=5)
+chineseOcrQueue = Queue(maxsize=10)
+englishOcrQueue = Queue(maxsize=10)
+ocrResultQueue = Queue(maxsize=15)
 
-imgPath = "./texas/final_cards_with_complex_bet.png"
-# game_begin_test(imgPath)
-# bottom_bet_test(imgPath)
-# for i in range(5):
-#     public_card_test(imgPath, i)
+remoteLock = Lock()
 
-# for i in range(9):
-    # player_card_test(imgPath, i)
-    # empty_seat_test(imgPath, i)
-    # player_status_test(imgPath, i)
-    
-    
+realTime = False
+videoSouce = "./texas/texas.mp4"
+
+chineseOcrProcessPool = []
+for i in range(NUM_CHINESE_OCR_PROC):
+    chineseOcrProcessPool.append(Process(target=chinese_ocr_process, args=(chineseOcrQueue, ocrResultQueue)))
+    chineseOcrProcessPool[i].start()
+print("Successfully start chinese ocr process (%d in total)!" %(NUM_CHINESE_OCR_PROC))
+
+englishOcrProcessPool = []
+for i in range(NUM_ENGLISH_OCR_PROC):
+    englishOcrProcessPool.append(Process(target=english_ocr_process, args=(englishOcrQueue, ocrResultQueue)))
+    englishOcrProcessPool[i].start()
+print("Successfully start english ocr process (%d in total)!" %(NUM_ENGLISH_OCR_PROC))
 
 
-chineseApi.End()
-englishApi.End()
-englishCharacterApi.End()
+frameFilterProcess = Process(target=frame_filter_process, args=(frameQueue, infoQueue, chineseOcrQueue, englishOcrQueue, ocrResultQueue))
+frameFilterProcess.start()
+
+statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteLock, realTime))
+statusControlProcess.start()
+
+# remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteLock))
+# remoteControlProcess.start()
+
+frameSourceProcess = Process(target=frame_source_process, args=(frameQueue, videoSouce, realTime))
+frameSourceProcess.start()
+
+
+while True:
+    time.sleep(1)
