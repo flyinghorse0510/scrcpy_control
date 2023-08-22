@@ -235,7 +235,7 @@ def public_card_test(imgPath: str, cardRank: int = 0) -> bool:
     suit = texas_suit.find_suit(publicCardSuitImg)
     if suit != texas_suit.SUIT_UNKNOWN:
         englishApi.SetImage(binarizedPublicCardRankImg)
-        publicCardRank = utils.card_rank_replace(utils.cleanStr(englishApi.GetUTF8Text()))
+        publicCardRank = utils.card_rank_replace(utils.clean_str(englishApi.GetUTF8Text()))
         print("%s%s" %(texas_suit.SuitSymbolArray[suit], publicCardRank))
     else:
         print("No Cards Found for %d Position!" %(cardRank))
@@ -282,7 +282,7 @@ def empty_seat_test(imgPath: str, playerSeat: int = 0) -> bool:
     playerSeatImg = originalImg.crop(EmptySeatArray[i])
     playerSeatImg.save("./tmp/empty_seat_%d.png" %(playerSeat))
     
-    areaActivated = texas_activated.empty_seat_activated(playerSeatImg)
+    areaActivated = texas_activated.empty_seat_activated(playerSeatImg, True, playerSeat)
     if areaActivated:
         print("Player Seat %d is Empty" %(playerSeat))
     else:
@@ -338,21 +338,21 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/final_cards_with_complex_bet.png"
+imgPath = "./texas/fold_unsuccessful.png"
 # game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):
 #     public_card_test(imgPath, i)
 
 for i in range(9):
-    player_card_test(imgPath, i)
-    # empty_seat_test(imgPath, i)
+    # player_card_test(imgPath, i)
+    empty_seat_test(imgPath, i)
     # player_status_test(imgPath, i)
     # player_bet_test(imgPath, i)
 
 # game_info_test(imgPath)
     
-    
+# print(PlayerStatusArray)    
 
 
 chineseApi.End()

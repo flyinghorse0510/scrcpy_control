@@ -211,6 +211,11 @@ class RankLine {
         long long update_rank(long long rank) {
             reset = false;
             _lastRank = rank;
+
+            if (_rankResult != -1) {
+                return _rankResult;
+            }
+            
             if (rank < 0 || rank > 12) {
                 return _rankResult;
             }

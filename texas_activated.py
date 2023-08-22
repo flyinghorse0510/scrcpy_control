@@ -78,7 +78,8 @@ def empty_seat_activated(img: Image.Image, saveImg: bool = False, saveIndex: int
         filteredImg.save("./tmp/filtered_empty_seat_%d.png" %(saveIndex))
     
     weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
-    if weight >= 0.3 and weight <= 0.6:
+    # print(weight)
+    if weight >= 0.2 and weight <= 0.7:
         return True
     else:
         return False
@@ -113,6 +114,8 @@ def user_fold_activated(img: Image.Image, saveImg: bool = False, saveIndex: int 
 
     weight = cvImg[:,:,2].sum() / (255.0 * cvImg.size)
     weightFold = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
+    # print(weight)
+    # print(weightFold)
     if (weightFold >= 0.30 and weightFold <= 0.48) or weight <= 0.064:
         return True
     else:
