@@ -53,8 +53,8 @@ public:
             return _supportPoint;
         }
 
-        std::fprintf(stderr, "Support point: %lld, Primary buffer point: %lld, Primary buffer count: %lld, Auxiliary buffer Point: %lld, Auxiliary buffer count: %lld, Measure point: %lld\n", _supportPoint, _primaryBufferPoint, _primaryBufferCount, _auxiliaryBufferPoint, _auxiliaryBufferCount, measurePoint);
-        std::fflush(stderr);
+        // std::fprintf(stderr, "Support point: %lld, Primary buffer point: %lld, Primary buffer count: %lld, Auxiliary buffer Point: %lld, Auxiliary buffer count: %lld, Measure point: %lld\n", _supportPoint, _primaryBufferPoint, _primaryBufferCount, _auxiliaryBufferPoint, _auxiliaryBufferCount, measurePoint);
+        // std::fflush(stderr);
 
         if (measurePoint == _supportPoint) {
             _primaryBufferPoint = 0;

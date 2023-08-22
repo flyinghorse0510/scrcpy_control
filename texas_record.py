@@ -59,7 +59,7 @@ class TexasRecord:
             return False
         
         newLine = ["-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1", "-1"]
-        newLine = newLine[:, self.currentPlayerCount]
+        newLine = newLine[:self.currentPlayerCount]
         self.table.append(newLine)
         self.lineIndex += 1
         return True
@@ -104,6 +104,9 @@ class TexasRecord:
         if not self.playing:
             return False
         
+        if self.lineIndex == 0:
+            return False
+        
         if self.table[self.lineIndex][playerIndex] != "-1":
             return False
         
@@ -116,7 +119,7 @@ class TexasRecord:
             return False
         
         for line in plainTable:
-            for i in len(line):
+            for i in range(len(line)):
                 if i < len(line) - 1:
                     self.recordFile.write("%s," %(line[i]))
                 else:
@@ -134,18 +137,18 @@ class TexasRecord:
         plainTable = [
             [
                 "" for _ in range(2 + self.currentPlayerCount)
-            ] for _ in range(min(len(self.table), 6))
+            ] for _ in range(max(len(self.table), 30))
         ]
         # Record Title
         for i in range(2 + self.currentPlayerCount):
             plainTable[0][i] = self.table[0][i][0]
     
         # Time 
-        plainTable[0][-1] = self.table[0][-1][1]
+        plainTable[1][-1] = self.table[0][-1][1]
         
         # Player Card
         for i in range(self.currentPlayerCount):
-            plainTable[0][i+1] += "(" + "%s%s,%s%s" %(self.table[0][i+1][1][0], self.table[0][i+1][1][1], self.table[0][i+1][2][0], self.table[0][i+1][2][1]) + ")"
+            plainTable[0][i+1] += "(" + "%s%s:%s%s" %(self.table[0][i+1][1][0], self.table[0][i+1][1][1], self.table[0][i+1][2][0], self.table[0][i+1][2][1]) + ")"
         
         
         # Public Card
@@ -167,3 +170,9 @@ class TexasRecord:
         self.lineIndex = 0
         
         return True
+
+if __name__ == "__main__":
+    testFile = TexasRecord("./tmp/record.csv")
+    testFile.new_round()
+    testFile.new_record_line()
+    testFile.end_round()
