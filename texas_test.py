@@ -338,7 +338,7 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/fold_unsuccessful.png"
+imgPath = "./texas/unsuccessful_initial.png"
 # game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):
@@ -347,7 +347,7 @@ imgPath = "./texas/fold_unsuccessful.png"
 for i in range(9):
     # player_card_test(imgPath, i)
     empty_seat_test(imgPath, i)
-    # player_status_test(imgPath, i)
+    player_status_test(imgPath, i)
     # player_bet_test(imgPath, i)
 
 # game_info_test(imgPath)

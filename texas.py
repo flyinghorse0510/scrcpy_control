@@ -435,51 +435,28 @@ def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Im
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
     infoBuffer = get_info_template()
-    lastFrameTime = time.time()
     # bottomBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
-    publicRankFilterArray = [
-        sline.RankLine(RANK_CONFIRM_COUNT),
-        sline.RankLine(RANK_CONFIRM_COUNT),
-        sline.RankLine(RANK_CONFIRM_COUNT),
-        sline.RankLine(RANK_CONFIRM_COUNT),
-        sline.RankLine(RANK_CONFIRM_COUNT)
-    ]
-    playerRankFilterArray = [
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-        [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)]
-    ]
-    debug_count = 0
-    debug_save = False
+    # publicRankFilterArray = [
+    #     sline.RankLine(RANK_CONFIRM_COUNT),
+    #     sline.RankLine(RANK_CONFIRM_COUNT),
+    #     sline.RankLine(RANK_CONFIRM_COUNT),
+    #     sline.RankLine(RANK_CONFIRM_COUNT),
+    #     sline.RankLine(RANK_CONFIRM_COUNT)
+    # ]
+    # playerRankFilterArray = [
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
+    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)]
+    # ]
     while True:
-        # try:
-        #     frame = frameQueue.get(block=False)
-        # except queue.Empty:
-        #     deltaTime = time.time() - lastFrameTime
-        #     if deltaTime >= 0.036:
-        #         try:
-        #             # Update player card with last rank
-        #             for i in range(9):
-        #                 for j in range(2):
-        #                     infoBuffer["playerCardRank"][i][j] = playerRankFilterArray[i][j].update_with_last_rank()
-        #             # Update public card with last rank
-        #             for i in range(5):
-        #                 infoBuffer["publicCardRank"][i] = publicRankFilterArray[i].update_with_last_rank()
-                        
-        #             infoQueue.put(deepcopy(infoBuffer), block=False)
-        #         except queue.Full:
-        #             print("Status control too slow! Dropping info...")
-        #         lastFrameTime = time.time()
-        #     time.sleep(0.001)
-        #     continue
+   
         frame = frameQueue.get(block = True)
-        lastFrameTime = time.time()
         if frame is None:
             infoQueue.put(None)
             chineseOcrQueue.put(None)
@@ -513,13 +490,13 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 submit_game_info_ocr(originalFrame.crop(GameInfoArea), chineseOcrQueue)
                 ocrResultCount += 1
             
-            # reset player card rank filter
-            for i in range(9):
-                for j in range(2):
-                    playerRankFilterArray[i][j].reset_rank()
-            # reset public card rank filter
-            for i in range(5):
-                publicRankFilterArray[i].reset_rank()
+            # # reset player card rank filter
+            # for i in range(9):
+            #     for j in range(2):
+            #         playerRankFilterArray[i][j].reset_rank()
+            # # reset public card rank filter
+            # for i in range(5):
+            #     publicRankFilterArray[i].reset_rank()
             
             for i in range(ocrResultCount):
                 result = ocrResultQueue.get()
@@ -781,12 +758,30 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     playerExpectedBet = gameInfo["largeBlind"]
                     currentGameRound = 1
                     # Create New Record
-                    recordFile.new_round()
+                    recordFile.new_round(len(playerList))
                     print("[%s] Begin Round %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), currentGameRound))
                     continue
             break
         
         elif gameStatus == STATUS_PLAYING:
+            # Force Reset
+            if gameBeginActivated and not bottomBetActivated:
+                # Update Player Card
+                for i in range(len(playerList)):
+                    originalPlayerIndex = playerList[i]
+                    for j in range(2):
+                        recordFile.update_player_card(i, j, infoDict["playerCardRank"][originalPlayerIndex][j], infoDict["playerCardSuit"][originalPlayerIndex][j])
+                # Update Public Card
+                for i in range(5):
+                    recordFile.update_public_card(i, infoDict["publicCardRank"][i], infoDict["publicCardSuit"][i])
+                print("[%s] Force Reset!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+                print("[%s] Syncing Record Data" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+                recordFile.end_round()
+                print("[%s] Waiting for Next Game..." %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+                gameStatus = STATUS_NULL
+                clean_game()
+                continue
+                
             # End Round
             if (len(playerNoActionList) == len(playerList)) or (len(playerNoActionList) == len(playerList) - 1 and len(playerActionList) == 0) or (len(playerActionList) == 0 and currentGameRound == 4):
                 print("[%s] All Rounds Ended!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
