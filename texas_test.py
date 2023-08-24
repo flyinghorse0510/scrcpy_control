@@ -209,10 +209,10 @@ def game_begin_test(imgPath: str) -> bool:
     binarizedGameBeginImg = utils.binarize_pillow(gameBeginImg, 130)
     binarizedGameBeginImg.save("./tmp/binarizedGameBegin.png")
     
-    areaActivated = texas_activated.game_begin_activated(binarizedGameBeginImg)
+    areaActivated = texas_activated.game_begin_activated(gameBeginImg)
     if areaActivated:
         chineseApi.SetImage(binarizedGameBeginImg)
-        chineseTxt = utils.cleanStr(chineseApi.GetUTF8Text())
+        chineseTxt = utils.clean_str(chineseApi.GetUTF8Text())
         print(chineseTxt)
     else:
         print("No Game Begin Found!")
@@ -338,16 +338,16 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/begin_8p_to_3p.png"
-# game_begin_test(imgPath)
+imgPath = "./texas/many_folds.png"
+game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):
 #     public_card_test(imgPath, i)
 
-for i in range(9):
+# for i in range(9):
     # player_card_test(imgPath, i)
-    empty_seat_test(imgPath, i)
-    player_status_test(imgPath, i)
+    # empty_seat_test(imgPath, i)
+    # player_status_test(imgPath, i)
     # player_bet_test(imgPath, i)
 
 # game_info_test(imgPath)

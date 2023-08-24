@@ -968,7 +968,7 @@ ocrResultQueue = Queue(maxsize=15)
 
 remoteLock = Lock()
 
-realTime = True
+realTime = False
 videoSouce = "./texas/texas_0537_0655.mp4"
 
 chineseOcrProcessPool = []
