@@ -338,7 +338,7 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/unsuccessful_initial.png"
+imgPath = "./texas/begin_8p_to_3p.png"
 # game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):

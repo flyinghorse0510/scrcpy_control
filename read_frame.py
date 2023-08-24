@@ -224,7 +224,7 @@ def submit_dealer_ocr(gameScreen: Image.Image, chineseOcrQueue: Queue):
     submit_ocr(["dealerBet", dealerBetImg], chineseOcrQueue)
     
 def get_dealer_ocr(dealerTxt: str) -> str:
-    if dealerTxt.find("888") != -1:
+    if dealerTxt.find("8888") != -1 and dealerTxt.find(".") == -1:
         return "萌萌哒"
     return ""
     

@@ -332,6 +332,9 @@ def get_game_info_ocr(gameInfoTxt: str) -> dict:
     beginIndex = gameInfoTxt.find("桌")
     if beginIndex == -1:
         beginIndex = gameInfoTxt.find("号")
+    if beginIndex == -1:
+        return {"smallBlind": -1, "largeBlind": -1, "playerBottomBet": -1}
+    
     for i in range(beginIndex-1, len(gameInfoTxt)):
         if gameInfoTxt[i] <= "9" and gameInfoTxt[i] >= "0":
             smallBlindIndex = i
@@ -379,9 +382,10 @@ def get_game_info_ocr(gameInfoTxt: str) -> dict:
     largeBlind = utils.txt2int(largeBlindTxt)
     playerBottomBet = utils.txt2int(playerBottomBetTxt)
     
-    if smallBlind * 2 != largeBlind:
+    if smallBlind * 2 != largeBlind or playerBottomBet <= largeBlind:
         smallBlind = -1
         largeBlind = -1
+        playerBottomBet = -1
     
     return {"smallBlind": smallBlind, "largeBlind": largeBlind, "playerBottomBet": playerBottomBet}
 
@@ -454,6 +458,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
     #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
     #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)]
     # ]
+    debug_count = 0
     while True:
    
         frame = frameQueue.get(block = True)
@@ -478,7 +483,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         # print("[%s] %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated))
         ocrResult = {}
         ocrResultCount = 0
-        
+        debug_count += 1
         # Game Begin
         if gameBeginActivated and (not bottomBetActivated):
             info = get_info_template()
@@ -489,7 +494,8 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 # Game Info
                 submit_game_info_ocr(originalFrame.crop(GameInfoArea), chineseOcrQueue)
                 ocrResultCount += 1
-            
+
+            # originalFrame.save("./tmp/game_begin_%d.png" %(debug_count))
             # # reset player card rank filter
             # for i in range(9):
             #     for j in range(2):
@@ -510,6 +516,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 infoQueue.put(deepcopy(info), block=False)
             except queue.Full:
                 print("Status control too slow! Dropping info...")
+
             continue
         
         # Bottom Bet
@@ -679,6 +686,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
     currentplayerBet = infoDict["playerBet"]
     currentBottomBet = infoDict["currentBottomBet"]
     currentGameInfo = infoDict["gameInfo"]
+    originalPlayerIndex = -1
     while True:
         if gameStatus == STATUS_NULL:
             # print("[%s] %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet))
@@ -695,26 +703,27 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
                 bottomBet = FrameBottomBetFilter.update_support_line(currentBottomBet)
                 
-                if len(playerList) == 0:
-                    # Construct Player List
-                    for i in range(9):
-                        if playerStatus[8-i] != PLAYER_EMPTY and playerStatus[8-i] != PLAYER_FOLD:
-                            playerList.append(8-i)
-                            playerBet.append(0)
-                else:
-                    # Find First Player
-                    for i in range(len(playerList)):
-                        if playerStatus[playerList[i]] == PLAYER_THINKING:
-                            currentPlayerIndex = i
+                # Find First Player
+                for i in range(9):
+                    if playerStatus[i] == PLAYER_THINKING:
+                        originalPlayerIndex = i
+                        print("Current Player Confirmed: %d" %(originalPlayerIndex))
                 
                 if valid_game_info(currentGameInfo) and (not valid_game_info(gameInfo)):
                     gameInfo["largeBlind"] = currentGameInfo["largeBlind"]
                     gameInfo["smallBlind"] = currentGameInfo["smallBlind"]
                     gameInfo["playerBottomBet"] = currentGameInfo["playerBottomBet"]
+                    print("Basic Game Info Confirmed!  ", end="")
+                    print(currentGameInfo)
                 
-                if currentPlayerIndex != -1 and valid_game_info(currentGameInfo) and bottomBet != -1:
-                    # gameInfo["largeBlindIndex"] = find_last_player(currentPlayerIndex, len(playerList))
-                    # gameInfo["smallBlindIndex"] = find_last_player(gameInfo["largeBlindIndex"], len(playerList))
+                if originalPlayerIndex != -1 and valid_game_info(currentGameInfo) and bottomBet != -1:
+                    
+                    for i in range(9):
+                        if playerStatus[8-i] != PLAYER_EMPTY and playerStatus[8-i] != PLAYER_FOLD:
+                            playerList.append(8-i)
+                            playerBet.append(0)
+                    
+                    currentPlayerIndex = playerList.index(originalPlayerIndex)
                     
                     # Confirm Pre-Bet Player
                     totalBet = 0
@@ -774,7 +783,9 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 # Update Public Card
                 for i in range(5):
                     recordFile.update_public_card(i, infoDict["publicCardRank"][i], infoDict["publicCardSuit"][i])
+                print("<<<<<<<<<< [ERROR] >>>>>>>>>>")
                 print("[%s] Force Reset!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
+                print("<<<<<<<<<< [ERROR] >>>>>>>>>>")
                 print("[%s] Syncing Record Data" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
                 recordFile.end_round()
                 print("[%s] Waiting for Next Game..." %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
@@ -957,8 +968,8 @@ ocrResultQueue = Queue(maxsize=15)
 
 remoteLock = Lock()
 
-realTime = False
-videoSouce = "./texas/texas.mp4"
+realTime = True
+videoSouce = "./texas/texas_0537_0655.mp4"
 
 chineseOcrProcessPool = []
 for i in range(NUM_CHINESE_OCR_PROC):
