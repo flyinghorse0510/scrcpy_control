@@ -209,7 +209,7 @@ def game_begin_test(imgPath: str) -> bool:
     binarizedGameBeginImg = utils.binarize_pillow(gameBeginImg, 130)
     binarizedGameBeginImg.save("./tmp/binarizedGameBegin.png")
     
-    areaActivated = texas_activated.game_begin_activated(gameBeginImg)
+    areaActivated = texas_activated.game_begin_activated(gameBeginImg, True)
     if areaActivated:
         chineseApi.SetImage(binarizedGameBeginImg)
         chineseTxt = utils.clean_str(chineseApi.GetUTF8Text())

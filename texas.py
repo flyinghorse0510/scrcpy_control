@@ -458,7 +458,6 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
     #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
     #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)]
     # ]
-    debug_count = 0
     while True:
    
         frame = frameQueue.get(block = True)
@@ -483,7 +482,6 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         # print("[%s] %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated))
         ocrResult = {}
         ocrResultCount = 0
-        debug_count += 1
         # Game Begin
         if gameBeginActivated and (not bottomBetActivated):
             info = get_info_template()
@@ -494,15 +492,6 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 # Game Info
                 submit_game_info_ocr(originalFrame.crop(GameInfoArea), chineseOcrQueue)
                 ocrResultCount += 1
-
-            # originalFrame.save("./tmp/game_begin_%d.png" %(debug_count))
-            # # reset player card rank filter
-            # for i in range(9):
-            #     for j in range(2):
-            #         playerRankFilterArray[i][j].reset_rank()
-            # # reset public card rank filter
-            # for i in range(5):
-            #     publicRankFilterArray[i].reset_rank()
             
             for i in range(ocrResultCount):
                 result = ocrResultQueue.get()
@@ -969,7 +958,7 @@ ocrResultQueue = Queue(maxsize=15)
 remoteLock = Lock()
 
 realTime = False
-videoSouce = "./texas/texas_0537_0655.mp4"
+videoSouce = "./texas/texas.mp4"
 
 chineseOcrProcessPool = []
 for i in range(NUM_CHINESE_OCR_PROC):

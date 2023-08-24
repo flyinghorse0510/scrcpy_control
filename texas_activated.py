@@ -40,6 +40,11 @@ PlayerBetColorFilter = (
     (30, 255, 255)
 )
 
+GameBeginColorFilter = (
+    (0, 0, 153),
+    (180, 102, 255)
+)
+
 AllInRef = np.array(Image.open("./imgData/ref_all_in.png"))
 UserThinkingRef = np.array(Image.open("./imgData/ref_user_thinking.png"))
 GameBeginRef = np.array(Image.open("./imgData/ref_game_begin.png"))
@@ -58,15 +63,19 @@ def bottom_bet_activated(img: Image.Image, saveImg: bool = False) -> bool:
     
 def game_begin_activated(img: Image.Image, saveImg: bool = False) -> bool:
     
-    binarizedImg = utils.binarize_pillow(img, 130)
+    cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)
+    filteredCvImg = cv2.inRange(cvImg, GameBeginColorFilter[0], GameBeginColorFilter[1])
+
+    filteredImg = Image.fromarray(filteredCvImg)
+    filteredImgArray = np.array(filteredImg)
+
+    if saveImg:
+        filteredImg.save("./tmp/filtered_game_begin.png")
     
-    imgArray = np.array(binarizedImg)
-    weight = 1.0 - imgArray.sum() / (255.0 * imgArray.size)
-    
-    if weight >= 0.06 and weight <= 0.3:
-        distance = np.power((GameBeginRef - imgArray).flatten(), 2).sum()
-        if distance <= 800:
-            return True
+    weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
+
+    if weight >= 0.08 and weight <= 0.27:
+        return True
 
     return False
     
