@@ -22,6 +22,9 @@ from copy import deepcopy
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
+realTime = True
+videoSouce = "/dev/video1"
+DeltaPixel = 0
 
 
 PLAYER_NULL = -1
@@ -83,23 +86,23 @@ playerExpectedBet = -1
 currentGameRound = 0
 
 PublicCardCalibrationArray = (
-    (875, 452),
-    (1029, 452),
-    (1184, 452),
-    (1339, 452),
-    (1493, 452)
+    (875 + DeltaPixel, 452),
+    (1029 + DeltaPixel, 452),
+    (1184 + DeltaPixel, 452),
+    (1339 + DeltaPixel, 452),
+    (1493 + DeltaPixel, 452)
 )
 
 PlayerCalibrationArray = (
-    (749, 253),
-    (408, 384),
-    (350, 713),
-    (640, 906),
-    (1170, 906),
-    (1701, 906),
-    (1989, 713),
-    (1930, 384),
-    (1591, 253)
+    (749 + DeltaPixel, 253),
+    (408 + DeltaPixel, 384),
+    (350 + DeltaPixel, 713),
+    (640 + DeltaPixel, 906),
+    (1170 + DeltaPixel, 906),
+    (1701 + DeltaPixel, 906),
+    (1989 + DeltaPixel, 713),
+    (1930 + DeltaPixel, 384),
+    (1591 + DeltaPixel, 253)
 )
 
 PublicCardRankSize = (48, 60)
@@ -439,25 +442,7 @@ def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Im
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
     infoBuffer = get_info_template()
-    # bottomBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
-    # publicRankFilterArray = [
-    #     sline.RankLine(RANK_CONFIRM_COUNT),
-    #     sline.RankLine(RANK_CONFIRM_COUNT),
-    #     sline.RankLine(RANK_CONFIRM_COUNT),
-    #     sline.RankLine(RANK_CONFIRM_COUNT),
-    #     sline.RankLine(RANK_CONFIRM_COUNT)
-    # ]
-    # playerRankFilterArray = [
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)],
-    #     [sline.RankLine(RANK_CONFIRM_COUNT), sline.RankLine(RANK_CONFIRM_COUNT)]
-    # ]
+
     while True:
    
         frame = frameQueue.get(block = True)
@@ -957,8 +942,7 @@ ocrResultQueue = Queue(maxsize=15)
 
 remoteLock = Lock()
 
-realTime = False
-videoSouce = "./texas/texas.mp4"
+
 
 chineseOcrProcessPool = []
 for i in range(NUM_CHINESE_OCR_PROC):
