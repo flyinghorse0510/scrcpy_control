@@ -113,22 +113,16 @@ def user_thinking_activated(img: Image.Image, saveImg: bool = False, saveIndex: 
             return True
     return False
     
-def user_fold_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
-    
-    cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)
-    # print(cvImg.shape)
-    filteredCvImg = cv2.inRange(cvImg, UserFoldColorFilter[0], UserFoldColorFilter[1])
-    
-    filteredImg = Image.fromarray(filteredCvImg)
-    filteredImgArray = np.array(filteredImg)
-    if saveImg:
-        filteredImg.save("./tmp/filtered_user_fold_%d.png" %(saveIndex))
+def user_fold_activated(globalBinarizedImg: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
+    globalBinarizedImgArray = np.array(globalBinarizedImg)
+    weight = 1.0 - globalBinarizedImgArray.sum() / (255.0 * globalBinarizedImgArray.size)
 
-    weight = cvImg[:,:,2].sum() / (255.0 * cvImg.size)
-    weightFold = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
+    if saveImg:
+        globalBinarizedImg.save("./tmp/filtered_user_fold_%d.png" %(saveIndex))
+
     # print(weight)
     # print(weightFold)
-    if (weightFold >= 0.30 and weightFold <= 0.48) or weight <= 0.064:
+    if weight <= 0.025:
         return True
     else:
         return False

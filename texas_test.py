@@ -309,12 +309,15 @@ def game_info_test(imgPath: str) -> bool:
 def player_status_test(imgPath: str, playerSeat: int = 0) -> bool:
     cvImg = cv2.imread(imgPath)
     originalImg = Image.fromarray(cv2.cvtColor(cvImg, cv2.COLOR_BGR2RGB))
+    globalBinarizedImg = utils.binarize_pillow(originalImg, 105)
     
     playerStatusImg = originalImg.crop(PlayerStatusArray[i])
     playerStatusImg.save("./tmp/player_status_%d.png" %(playerSeat))
+
+    binarizedPlayerStatusImg = globalBinarizedImg.crop(PlayerStatusArray[i])
     
     userThinkingActivated = texas_activated.user_thinking_activated(playerStatusImg, True, playerSeat)
-    userFoldActivated = texas_activated.user_fold_activated(playerStatusImg, True, playerSeat)
+    userFoldActivated = texas_activated.user_fold_activated(binarizedPlayerStatusImg, True, playerSeat)
     userAllInActivated = texas_activated.user_all_in_activated(playerStatusImg, True, playerSeat)
     if userThinkingActivated:
         print("User %d is Thinking" %(playerSeat))
@@ -338,16 +341,16 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/many_folds.png"
-game_begin_test(imgPath)
+imgPath = "./texas/over_fold.png"
+# game_begin_test(imgPath)
 # bottom_bet_test(imgPath)
 # for i in range(5):
 #     public_card_test(imgPath, i)
 
-# for i in range(9):
+for i in range(9):
     # player_card_test(imgPath, i)
     # empty_seat_test(imgPath, i)
-    # player_status_test(imgPath, i)
+    player_status_test(imgPath, i)
     # player_bet_test(imgPath, i)
 
 # game_info_test(imgPath)

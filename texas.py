@@ -24,7 +24,7 @@ tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
 realTime = True
 videoSouce = "/dev/video1"
-DeltaPixel = 0
+DeltaPixel = -5
 
 
 PLAYER_NULL = -1
@@ -428,10 +428,10 @@ def get_card_rank(cardRankTxt: str) -> int:
     # print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
     return CARD_RANK_UNKNOWN
 
-def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Image) -> int:
+def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Image, globalBinarizedStatusImg: Image.Image) -> int:
     if texas_activated.empty_seat_activated(playerEmptySeatImg):
         return PLAYER_EMPTY
-    if texas_activated.user_fold_activated(playerStatusImg):
+    if texas_activated.user_fold_activated(globalBinarizedStatusImg):
         return PLAYER_FOLD
     if texas_activated.user_thinking_activated(playerStatusImg):
         return PLAYER_THINKING
@@ -454,6 +454,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         
         info = deepcopy(infoBuffer)
         originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        globalBinarizedFrame = utils.binarize_pillow(originalFrame, 105)
         
         gameBeginAreaImg = originalFrame.crop(GameBeginArea)
         bottomBetAreaImg = originalFrame.crop(BottomBetArea)
@@ -504,7 +505,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 continue
             # Status
             if info["playerStatus"][i] == PLAYER_NULL or info["playerStatus"][i] == PLAYER_THINKING:
-                playerStatus = get_player_status(originalFrame.crop(PlayerStatusArray[i]), originalFrame.crop(EmptySeatArray[i]))
+                playerStatus = get_player_status(originalFrame.crop(PlayerStatusArray[i]), originalFrame.crop(EmptySeatArray[i]), globalBinarizedFrame.crop(PlayerStatusArray[i]))
                 info["playerStatus"][i] = playerStatus
                 if playerStatus == PLAYER_EMPTY or playerStatus == PLAYER_FOLD:
                     continue
