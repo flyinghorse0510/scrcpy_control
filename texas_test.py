@@ -20,6 +20,7 @@ import texas_activated
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
+pixelDelta = -5
 
 
 USER_NULL = -1
@@ -39,23 +40,23 @@ infoQueue = Queue(maxsize=10)
 remoteQueue = Queue(maxsize=100)
 
 PublicCardCalibrationArray = (
-    (875, 452),
-    (1029, 452),
-    (1184, 452),
-    (1339, 452),
-    (1493, 452)
+    (875 + pixelDelta, 452),
+    (1029 + pixelDelta, 452),
+    (1184 + pixelDelta, 452),
+    (1339 + pixelDelta, 452),
+    (1493 + pixelDelta, 452)
 )
 
 PlayerCalibrationArray = (
-    (749, 253),
-    (408, 384),
-    (350, 713),
-    (640, 906),
-    (1170, 906),
-    (1701, 906),
-    (1989, 713),
-    (1930, 384),
-    (1591, 253)
+    (749 + pixelDelta, 253),
+    (408 + pixelDelta, 384),
+    (350 + pixelDelta, 713),
+    (640 + pixelDelta, 906),
+    (1170 + pixelDelta, 906),
+    (1701 + pixelDelta, 906),
+    (1989 + pixelDelta, 713),
+    (1930 + pixelDelta, 384),
+    (1591 + pixelDelta, 253)
 )
 
 PublicCardRankSize = (48, 60)
@@ -341,21 +342,22 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
     return True
 
 
-imgPath = "./texas/over_fold.png"
-# game_begin_test(imgPath)
-# bottom_bet_test(imgPath)
-# for i in range(5):
-#     public_card_test(imgPath, i)
+if __name__ == "__main__":
+    imgPath = "./texas/remote_fake_fold.png"
+    # game_begin_test(imgPath)
+    # bottom_bet_test(imgPath)
+    # for i in range(5):
+    #     public_card_test(imgPath, i)
 
-for i in range(9):
-    # player_card_test(imgPath, i)
-    # empty_seat_test(imgPath, i)
-    player_status_test(imgPath, i)
-    # player_bet_test(imgPath, i)
-
-# game_info_test(imgPath)
-    
-# print(PlayerStatusArray)    
+    for i in range(9):
+        # player_card_test(imgPath, i)
+        empty_seat_test(imgPath, i)
+        # player_status_test(imgPath, i)
+        # player_bet_test(imgPath, i)
+    # print(EmptySeatArray)
+    # game_info_test(imgPath)
+        
+    # print(PlayerStatusArray)    
 
 
 chineseApi.End()

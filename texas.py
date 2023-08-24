@@ -22,8 +22,8 @@ from copy import deepcopy
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
-realTime = True
-videoSouce = "/dev/video1"
+realTime = False
+videoSouce = "./texas/remote_texas_0328_0414.mp4"
 DeltaPixel = -5
 
 
@@ -428,21 +428,21 @@ def get_card_rank(cardRankTxt: str) -> int:
     # print("UNKNOWN CARD RANK ==> %s" %(filteredCardRankTxt))
     return CARD_RANK_UNKNOWN
 
-def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Image, globalBinarizedStatusImg: Image.Image) -> int:
-    if texas_activated.empty_seat_activated(playerEmptySeatImg):
+def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Image, globalBinarizedStatusImg: Image.Image, debug: bool = False, saveIndex: int = 0) -> int:
+    if texas_activated.empty_seat_activated(playerEmptySeatImg, debug, saveIndex):
         return PLAYER_EMPTY
-    if texas_activated.user_fold_activated(globalBinarizedStatusImg):
+    if texas_activated.user_fold_activated(globalBinarizedStatusImg, debug, saveIndex):
         return PLAYER_FOLD
-    if texas_activated.user_thinking_activated(playerStatusImg):
+    if texas_activated.user_thinking_activated(playerStatusImg, debug, saveIndex):
         return PLAYER_THINKING
-    if texas_activated.user_all_in_activated(playerStatusImg):
+    if texas_activated.user_all_in_activated(playerStatusImg, debug, saveIndex):
         return PLAYER_ALL_IN
     return PLAYER_NULL
 
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
     infoBuffer = get_info_template()
-
+    # debugCount = 0
     while True:
    
         frame = frameQueue.get(block = True)
@@ -451,7 +451,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             chineseOcrQueue.put(None)
             englishOcrQueue.put(None)
             break
-        
+        # debugCount += 1
         info = deepcopy(infoBuffer)
         originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         globalBinarizedFrame = utils.binarize_pillow(originalFrame, 105)

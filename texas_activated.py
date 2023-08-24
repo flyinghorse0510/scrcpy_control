@@ -48,6 +48,7 @@ GameBeginColorFilter = (
 AllInRef = np.array(Image.open("./imgData/ref_all_in.png"))
 UserThinkingRef = np.array(Image.open("./imgData/ref_user_thinking.png"))
 GameBeginRef = np.array(Image.open("./imgData/ref_game_begin.png"))
+EmptySeatRef = np.array(Image.open("./imgData/ref_empty_seat.png"))
 
 def bottom_bet_activated(img: Image.Image, saveImg: bool = False) -> bool:
     
@@ -90,11 +91,14 @@ def empty_seat_activated(img: Image.Image, saveImg: bool = False, saveIndex: int
         filteredImg.save("./tmp/filtered_empty_seat_%d.png" %(saveIndex))
     
     weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
+    distance = np.power((EmptySeatRef - filteredImgArray).flatten(), 2).sum()
+    # print(distance)
     # print(weight)
     if weight >= 0.2 and weight <= 0.7:
-        return True
-    else:
-        return False
+        distance = np.power((EmptySeatRef - filteredImgArray).flatten(), 2).sum()
+        if distance <= 600:
+            return True
+    return False
     
 def user_thinking_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
     
