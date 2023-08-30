@@ -16,6 +16,16 @@ import support_line as sline
 import utils
 import texas_suit
 
+USER_NULL = -1
+USER_THINKING = 0
+USER_FOLD = 1
+USER_ALL_IN = 2
+USER_EMPTY = 3
+USER_ADD_BET = 4
+USER_C_BET = 5
+
+UserStatusArray = [USER_ALL_IN, USER_ADD_BET, USER_C_BET]
+
 EmptySeatColorFilter = (
     (22, 100, 100),
     (45, 255, 255)
@@ -49,6 +59,9 @@ AllInRef = np.array(Image.open("./imgData/ref_all_in.png"))
 UserThinkingRef = np.array(Image.open("./imgData/ref_user_thinking.png"))
 GameBeginRef = np.array(Image.open("./imgData/ref_game_begin.png"))
 EmptySeatRef = np.array(Image.open("./imgData/ref_empty_seat.png"))
+AddBetRef = np.array(Image.open("./imgData/ref_add_bet.png"))
+CBetRef = np.array(Image.open("./imgData/ref_c_bet.png"))
+LookBetRef = np.array(Image.open("./imgData/ref_look_bet.png"))
 
 def bottom_bet_activated(img: Image.Image, saveImg: bool = False) -> bool:
     
@@ -100,7 +113,7 @@ def empty_seat_activated(img: Image.Image, saveImg: bool = False, saveIndex: int
             return True
     return False
     
-def user_thinking_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
+def user_thinking_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> int:
     
     cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)
     filteredCvImg = cv2.inRange(cvImg, UserThinkingColorFilter[0], UserThinkingColorFilter[1])
@@ -111,11 +124,22 @@ def user_thinking_activated(img: Image.Image, saveImg: bool = False, saveIndex: 
         filteredImg.save("./tmp/filtered_user_thinking_%d.png" %(saveIndex))
     
     weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
-    if weight >= 0.42 and weight <= 0.55:
-        distance = np.power((UserThinkingRef - filteredImgArray).flatten(), 2).sum()
-        if distance <= 700:
-            return True
-    return False
+
+    if weight >= 0.38 and weight <= 0.55:
+        thinkingDistance = np.power((UserThinkingRef - filteredImgArray).flatten(), 2).sum()
+        lookingDistance = np.power((LookBetRef - filteredImgArray).flatten(), 2).sum()
+        distanceArray = [thinkingDistance, lookingDistance]
+
+        minDistance = np.min(distanceArray)
+        minIndex = np.argmin(distanceArray)
+
+        if minDistance <= 600:
+            if minIndex == 0:
+                return USER_THINKING
+            else:
+                return USER_C_BET
+            
+    return USER_NULL
     
 def user_fold_activated(globalBinarizedImg: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
     globalBinarizedImgArray = np.array(globalBinarizedImg)
@@ -131,7 +155,7 @@ def user_fold_activated(globalBinarizedImg: Image.Image, saveImg: bool = False, 
     else:
         return False
     
-def user_all_in_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> bool:
+def user_all_in_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0) -> int:
     
     cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)
     filteredCvImg = cv2.inRange(cvImg, UserAllInColorFilter[0], UserAllInColorFilter[1])
@@ -142,13 +166,22 @@ def user_all_in_activated(img: Image.Image, saveImg: bool = False, saveIndex: in
         filteredImg.save("./tmp/filtered_user_all_in_%d.png" %(saveIndex))
 
     weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
-    if weight >= 0.35 and weight <= 0.65:
-        distance = np.power((AllInRef - filteredImgArray).flatten(), 2).sum()
-        if distance <= 600:
-            return True
-        else:
-            return False
-    return False
+
+    # print(weight)
+    if weight >= 0.30 and weight <= 0.65:
+
+        allInDistance = np.power((AllInRef - filteredImgArray).flatten(), 2).sum()
+        addBetDistance = np.power((AddBetRef - filteredImgArray).flatten(), 2).sum()
+        cBetDistance = np.power((CBetRef - filteredImgArray).flatten(), 2).sum()
+        distanceArray = [allInDistance, addBetDistance, cBetDistance]
+
+        minDistance = np.min(distanceArray)
+        minIndex = np.argmin(distanceArray)
+
+        if minDistance <= 600:
+            return UserStatusArray[minIndex]
+
+    return USER_NULL
 
 def player_bet_activated(img: Image.Image, saveImg: bool = False, saveIndex: int = 0)-> bool:
     cvImg = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2HSV)

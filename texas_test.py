@@ -20,7 +20,7 @@ import texas_activated
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
-pixelDelta = -5
+pixelDelta = 0
 
 
 USER_NULL = -1
@@ -28,6 +28,8 @@ USER_THINKING = 0
 USER_FOLD = 1
 USER_ALL_IN = 2
 USER_EMPTY = 3
+USER_ADD_BET = 4
+USER_C_BET = 5
 
 BET_CONFIRM_COUNT = 6
 
@@ -317,15 +319,19 @@ def player_status_test(imgPath: str, playerSeat: int = 0) -> bool:
 
     binarizedPlayerStatusImg = globalBinarizedImg.crop(PlayerStatusArray[i])
     
-    userThinkingActivated = texas_activated.user_thinking_activated(playerStatusImg, True, playerSeat)
+    userThinkingStatus = texas_activated.user_thinking_activated(playerStatusImg, True, playerSeat)
     userFoldActivated = texas_activated.user_fold_activated(binarizedPlayerStatusImg, True, playerSeat)
-    userAllInActivated = texas_activated.user_all_in_activated(playerStatusImg, True, playerSeat)
-    if userThinkingActivated:
+    userAllInStatus = texas_activated.user_all_in_activated(playerStatusImg, True, playerSeat)
+    if userThinkingStatus == USER_THINKING:
         print("User %d is Thinking" %(playerSeat))
+    elif userThinkingStatus == USER_C_BET or userAllInStatus == USER_C_BET:
+        print("User %d has C-Bet!" %(playerSeat))
     elif userFoldActivated:
         print("User %d has Folded" %(playerSeat))
-    elif userAllInActivated:
+    elif userAllInStatus == USER_ALL_IN:
         print("User %d has All-In!" %(playerSeat))
+    elif userAllInStatus == USER_ADD_BET:
+        print("User %d has Add-Bet!" %(playerSeat))
     
     return True
 
@@ -343,7 +349,7 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
 
 
 if __name__ == "__main__":
-    imgPath = "./texas/remote_fake_fold.png"
+    imgPath = "./texas/empty_seat_unsuccessful.png"
     # game_begin_test(imgPath)
     # bottom_bet_test(imgPath)
     # for i in range(5):
@@ -351,8 +357,8 @@ if __name__ == "__main__":
 
     for i in range(9):
         # player_card_test(imgPath, i)
-        empty_seat_test(imgPath, i)
-        # player_status_test(imgPath, i)
+        # empty_seat_test(imgPath, i)
+        player_status_test(imgPath, i)
         # player_bet_test(imgPath, i)
     # print(EmptySeatArray)
     # game_info_test(imgPath)

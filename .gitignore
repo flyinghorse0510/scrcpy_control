@@ -6,3 +6,5 @@ tiger_video
 *.jpg
 tmp
 __pycache__
+A4Train/*.png
+A4TrainImg

@@ -17,21 +17,24 @@ import utils
 import texas_suit
 import texas_activated
 import texas_record
+import A4TrainRef as a4_ref
 from copy import deepcopy
 
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
 realTime = False
-videoSouce = "./texas/remote_texas_0328_0414.mp4"
+videoSouce = "./texas/remote_texas.mp4"
 DeltaPixel = -5
 
 
-PLAYER_NULL = -1
-PLAYER_THINKING = 0
-PLAYER_FOLD = 1
-PLAYER_ALL_IN = 2
-PLAYER_EMPTY = 3
+USER_NULL = -1
+USER_THINKING = 0
+USER_FOLD = 1
+USER_ALL_IN = 2
+USER_EMPTY = 3
+USER_ADD_BET = 4
+USER_C_BET = 5
 
 BET_CONFIRM_COUNT = 5
 RANK_CONFIRM_COUNT = 2
@@ -84,6 +87,8 @@ currentPlayerIndex = -1
 totalRoundCount = 0
 playerExpectedBet = -1
 currentGameRound = 0
+
+UserStatusStringArray = ["USER_THINKING", "USER_FOLD", "USER_ALL_IN", "USER_EMPTY", "USER_ADD_BET", "USER_C_BET", "USER_NULL"]
 
 PublicCardCalibrationArray = (
     (875 + DeltaPixel, 452),
@@ -226,15 +231,15 @@ def get_info_template() -> dict:
         "bottomBetActivated": False, 
         "gameBeginActivated": False, 
         "playerStatus": [
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL,
-            PLAYER_NULL
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL,
+            USER_NULL
         ],
         "playerBet": [
             False,
@@ -430,19 +435,25 @@ def get_card_rank(cardRankTxt: str) -> int:
 
 def get_player_status(playerStatusImg: Image.Image, playerEmptySeatImg: Image.Image, globalBinarizedStatusImg: Image.Image, debug: bool = False, saveIndex: int = 0) -> int:
     if texas_activated.empty_seat_activated(playerEmptySeatImg, debug, saveIndex):
-        return PLAYER_EMPTY
+        return USER_EMPTY
+    
     if texas_activated.user_fold_activated(globalBinarizedStatusImg, debug, saveIndex):
-        return PLAYER_FOLD
-    if texas_activated.user_thinking_activated(playerStatusImg, debug, saveIndex):
-        return PLAYER_THINKING
-    if texas_activated.user_all_in_activated(playerStatusImg, debug, saveIndex):
-        return PLAYER_ALL_IN
-    return PLAYER_NULL
+        return USER_FOLD
+    
+    userThinkingStatus = texas_activated.user_thinking_activated(playerStatusImg, debug, saveIndex)
+    if userThinkingStatus != USER_NULL:
+        return userThinkingStatus
+    
+    userAllInStatus = texas_activated.user_all_in_activated(playerStatusImg, debug, saveIndex)
+    if userAllInStatus != USER_NULL:
+        return userAllInStatus
+    
+    return USER_NULL
 
 def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Queue, englishOcrQueue: Queue, ocrResultQueue: Queue):
     print("Frame Filter started!")
     infoBuffer = get_info_template()
-    # debugCount = 0
+    debugCount = 0
     while True:
    
         frame = frameQueue.get(block = True)
@@ -451,7 +462,7 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             chineseOcrQueue.put(None)
             englishOcrQueue.put(None)
             break
-        # debugCount += 1
+        debugCount += 1
         info = deepcopy(infoBuffer)
         originalFrame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         globalBinarizedFrame = utils.binarize_pillow(originalFrame, 105)
@@ -501,13 +512,13 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             
         # Player
         for i in range(9):
-            if info["playerStatus"][i] == PLAYER_EMPTY or info["playerStatus"][i] == PLAYER_FOLD:
+            if info["playerStatus"][i] == USER_EMPTY or info["playerStatus"][i] == USER_FOLD:
                 continue
             # Status
-            if info["playerStatus"][i] == PLAYER_NULL or info["playerStatus"][i] == PLAYER_THINKING:
+            if info["playerStatus"][i] != USER_EMPTY and info["playerStatus"][i] != USER_FOLD and info["playerStatus"][i] != USER_ALL_IN:
                 playerStatus = get_player_status(originalFrame.crop(PlayerStatusArray[i]), originalFrame.crop(EmptySeatArray[i]), globalBinarizedFrame.crop(PlayerStatusArray[i]))
                 info["playerStatus"][i] = playerStatus
-                if playerStatus == PLAYER_EMPTY or playerStatus == PLAYER_FOLD:
+                if playerStatus == USER_EMPTY or playerStatus == USER_FOLD:
                     continue
                         
             # Player Card and Suit
@@ -522,14 +533,14 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
         # Player Initial Bet
         playerBetValid = False
         for i in range(9):
-            if info["playerStatus"][i] == PLAYER_THINKING:
+            if info["playerStatus"][i] == USER_THINKING:
                 playerBetValid = True
                 break
 
         if playerBetValid:
             for i in range(9):
                 # Bet
-                if (not info["playerBet"][i]) and info["playerStatus"][i] != PLAYER_EMPTY and info["playerStatus"][i] != PLAYER_FOLD:
+                if (not info["playerBet"][i]) and info["playerStatus"][i] != USER_EMPTY and info["playerStatus"][i] != USER_FOLD:
                     info["playerBet"][i] = texas_activated.player_bet_activated(originalFrame.crop(PlayerBetArray[i]))
             
         # Public
@@ -559,6 +570,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
                 i = int(key[7])
                 j = int(key[8])
                 rank = get_card_rank(ocrResult[key])
+
+                if rank == CARD_RANK_A:
+                    rank = a4_ref.get_actual_card_rank(originalFrame.crop(PlayerCardRankArray[i][j]))
+
                 if rank != CARD_RANK_UNKNOWN:
                     info["playerCardRank"][i][j] = rank
                 else:
@@ -567,6 +582,10 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             elif key[:6] == "public":
                 i = int(key[7])
                 rank = get_card_rank(ocrResult[key])
+
+                if rank == CARD_RANK_A:
+                    rank = a4_ref.get_actual_card_rank(originalFrame.crop(PublicCardRankArray[i]))
+                
                 if rank != CARD_RANK_UNKNOWN:
                     info["publicCardRank"][i] = rank
                 else:
@@ -611,6 +630,7 @@ def frame_source_process(frameQueue: Queue, videoSouce: str = "/dev/video0", rea
         else:
             break
     cap.release()
+    frameQueue.put(None)
     print("Frame Reader terminated!")
 
 def find_next_player(currentPlayerIndex: int, totalPlayer: int) -> int:
@@ -673,14 +693,14 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 continue
             break
         elif gameStatus == STATUS_WAIT_FOR_BEGIN:
-            # print("[%s] %d %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet, playerStatus[5]))
-            # print("[%s] %d %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), currentGameInfo["smallBlind"], currentGameInfo["largeBlind"], currentGameInfo["playerBottomBet"]))
+
+            # Normal Trace
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
                 bottomBet = FrameBottomBetFilter.update_support_line(currentBottomBet)
                 
                 # Find First Player
                 for i in range(9):
-                    if playerStatus[i] == PLAYER_THINKING:
+                    if playerStatus[i] == USER_THINKING:
                         originalPlayerIndex = i
                         print("Current Player Confirmed: %d" %(originalPlayerIndex))
                 
@@ -694,7 +714,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 if originalPlayerIndex != -1 and valid_game_info(currentGameInfo) and bottomBet != -1:
                     
                     for i in range(9):
-                        if playerStatus[8-i] != PLAYER_EMPTY and playerStatus[8-i] != PLAYER_FOLD:
+                        if playerStatus[8-i] != USER_EMPTY and playerStatus[8-i] != USER_FOLD:
                             playerList.append(8-i)
                             playerBet.append(0)
                     
@@ -703,7 +723,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     # Confirm Pre-Bet Player
                     totalBet = 0
                     for i in range(len(playerList)):
-                        if playerStatus[playerList[i]] != PLAYER_EMPTY and playerStatus[playerList[i]] != PLAYER_FOLD:
+                        if playerStatus[playerList[i]] != USER_EMPTY and playerStatus[playerList[i]] != USER_FOLD:
                             if currentplayerBet[playerList[i]]:
                                 playerBet[i] = gameInfo["largeBlind"]
                                 totalBet += gameInfo["largeBlind"]
@@ -713,11 +733,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     for i in range(currentPlayerIndex, currentPlayerIndex + len(playerList)):
                         index = i % len(playerList)
                         playerActionList.append(index)
-                    # while totalBet < bottomBet:
-                    #     totalBet += gameInfo["playerBottomBet"]
 
-                    # if bottomBet % gameInfo["largeBlind"] != 0: 
-                    #     playerBet[gameInfo["smallBlindIndex"]] = gameInfo["smallBlind"]
                     if totalBet != bottomBet and totalBet - bottomBet != gameInfo["smallBlind"]:
                         print("[%s] Warning! Bottom Bet Mismatch!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
 
@@ -743,6 +759,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     currentGameRound = 1
                     # Create New Record
                     recordFile.new_round(len(playerList))
+                    recordFile.update_game_info(gameInfo)
                     print("[%s] Begin Round %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), currentGameRound))
                     continue
             break
@@ -762,7 +779,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 print("[%s] Force Reset!" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
                 print("<<<<<<<<<< [ERROR] >>>>>>>>>>")
                 print("[%s] Syncing Record Data" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
-                recordFile.end_round()
+                recordFile.end_round(True)
                 print("[%s] Waiting for Next Game..." %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())))
                 gameStatus = STATUS_NULL
                 clean_game()
@@ -780,7 +797,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 currentPlayerIndex = -1
                 # Find Next Round's First Player
                 for i in range(len(playerList)):
-                    if playerStatus[playerList[i]] == PLAYER_THINKING:
+                    if playerStatus[playerList[i]] == USER_THINKING:
                         currentPlayerIndex = i
                 # Begin Next round
                 if currentPlayerIndex != -1:
@@ -800,19 +817,20 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
             # Operation Track
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
                 status = playerStatus[playerList[playerActionList[0]]]
-                if status == PLAYER_THINKING:
+                if status == USER_THINKING:
                     bottomBet = currentBottomBet
                     if currentPlayerIndex != playerActionList[0]:
                         currentPlayerIndex = playerActionList[0]
                         print("[%s] Player %d(Thinking)" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0]))
                     break
-                elif status == PLAYER_FOLD or status == PLAYER_EMPTY:
+                elif status == USER_FOLD or status == USER_EMPTY:
                     try: 
                         playerNoActionList.index(playerActionList[0])
                     except:
                         bottomBet = currentBottomBet
                         playerNoActionList.append(playerActionList[0])
-                        print("[%s] Player %d Fold" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0]))
+                        # Update Current Player Index
+                        currentPlayerIndex = playerActionList[0]
                         if not recordFile.update_player_operation(playerActionList[0], "F"):
                             return False
                     # New Record Line
@@ -823,25 +841,31 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     playerActionList.pop(0)
                     print(playerActionList)
                     continue
-                elif status == PLAYER_ALL_IN:
+                elif status == USER_ALL_IN:
                     try:
                         playerNoActionList.index(playerActionList[0])
                     except:
                         if currentBottomBet - bottomBet <= gameInfo["largeBlind"]:
                             break
                         playerNoActionList.append(playerActionList[0])
-                        print("[%s] Player %d All-in" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0]))
-                        if not recordFile.update_player_operation(playerActionList[0], "A"):
-                            return False
+
                         # Update Bet
                         playerBet[playerActionList[0]] += currentBottomBet - bottomBet
                         bottomBet = currentBottomBet
                         if playerBet[playerActionList[0]] - gameInfo["largeBlind"] >= playerExpectedBet:
                             # Update Player Action List
                             lastPlayer = playerActionList[-1]
+                            playerExpectedBet = playerBet[playerActionList[0]]
                             for i in range(len(playerList) - len(playerActionList)):
                                 playerActionList.append((lastPlayer + i + 1) % len(playerList))
 
+                        # Update Current Player Index
+                        currentPlayerIndex = playerActionList[0]
+                        # Record
+                        playerBetEqualTimes =  int(float(playerBet[playerActionList[0]]) / float(gameInfo["largeBlind"]) + 0.5)
+                        if not recordFile.update_player_operation(playerActionList[0], "A%d" %(playerBetEqualTimes)):
+                            return False
+                        
                     # New Record Line
                     if len(playerActionList) > 1 and playerActionList[0] > playerActionList[1]:
                         recordFile.new_record_line()
@@ -850,12 +874,13 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     playerActionList.pop(0)
                     print(playerActionList)
                     continue
-                elif status == PLAYER_NULL and currentPlayerIndex == playerActionList[0]:
-                    if playerExpectedBet - playerBet[playerActionList[0]] > currentBottomBet - bottomBet + gameInfo["smallBlind"]:
+                elif (status == USER_ADD_BET) or (status == USER_C_BET) :
+                    if playerExpectedBet - playerBet[playerActionList[0]] > currentBottomBet - bottomBet + gameInfo["largeBlind"]:
                         break
-                    print("Player %d ==> %d, %d" %(playerActionList[0], currentBottomBet, bottomBet))
+
+                    print("Player %d(%s) ==> %d, %d" %(playerActionList[0], UserStatusStringArray[status], currentBottomBet, bottomBet))
                     
-                    if currentBottomBet - bottomBet <= gameInfo["smallBlind"]:
+                    if currentBottomBet - bottomBet <= gameInfo["largeBlind"]:
                         # Record
                         betTimes = int(playerExpectedBet / gameInfo["largeBlind"])
                         print("[%s] Player %d C%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
@@ -866,15 +891,16 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     else:
                         # C or B
                         playerBet[playerActionList[0]] += currentBottomBet - bottomBet
-                        if playerBet[playerActionList[0]] % gameInfo["largeBlind"] != 0:
-                            playerBet[playerActionList[0]] -= gameInfo["smallBlind"]
                         bottomBet = currentBottomBet
-                            
-                        if playerBet[playerActionList[0]] - playerExpectedBet <= gameInfo["smallBlind"]:
+                        
+                        playerBetEqualTimes =  int(float(playerBet[playerActionList[0]]) / float(gameInfo["largeBlind"]) + 0.5)
+                        playerExpectedBetEqualTimes = int(float(playerExpectedBet) / float(gameInfo["largeBlind"]) + 0.5)
+
+                        if ((playerBet[playerActionList[0]] - playerExpectedBet <= gameInfo["largeBlind"]) or (playerExpectedBetEqualTimes == playerBetEqualTimes) or (status == USER_C_BET)) and (status != USER_ADD_BET):
                             # C
                             playerBet[playerActionList[0]] = playerExpectedBet
                             # Record
-                            betTimes = int(playerExpectedBet / gameInfo["largeBlind"])
+                            betTimes = playerExpectedBetEqualTimes
                             print("[%s] Player %d C%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
                             if not recordFile.update_player_operation(playerActionList[0], "C%d" %(betTimes)):
                                 return False
@@ -886,11 +912,13 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                             for i in range(len(playerList) - len(playerActionList)):
                                 playerActionList.append((lastPlayer + i + 1) % len(playerList))
                             # Record
-                            betTimes = int(playerExpectedBet / gameInfo["largeBlind"])
+                            betTimes = playerBetEqualTimes
                             print("[%s] Player %d B%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
                             if not recordFile.update_player_operation(playerActionList[0], "B%d" %(betTimes)):
                                 return False
                     print(playerBet)
+                    # Update Current Player Index
+                    currentPlayerIndex = playerActionList[0]
                     # New Record Line
                     if len(playerActionList) > 1 and playerActionList[0] > playerActionList[1]:
                         recordFile.new_record_line()

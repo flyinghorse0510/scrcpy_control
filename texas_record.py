@@ -13,6 +13,7 @@ import sys
 import support_line as sline
 import utils
 import texas_suit
+from copy import deepcopy
 
 
 CARD_RANK_UNKNOWN = -1
@@ -53,6 +54,9 @@ class TexasRecord:
         self.table = []
         self.currentPlayerCount = 0
         self.lineIndex = 0
+        self.roundError = False
+        self.gameInfo = {"smallBlind": -1, "largeBlind": -1, "smallBlindIndex": -1, "largeBlindIndex": -1, "playerBottomBet": -1}
+        
         
     def new_record_line(self) -> bool:
         if not self.playing:
@@ -114,6 +118,12 @@ class TexasRecord:
         
         return True
     
+    def update_game_info(self, gameInfo: dict) -> bool:
+        if not self.playing:
+            return False
+        
+        self.gameInfo = deepcopy(gameInfo)
+    
     def write_plain_table(self, plainTable: list) -> bool:
         if not self.playing:
             return False
@@ -130,10 +140,12 @@ class TexasRecord:
         return True
                 
     
-    def end_round(self) -> bool:
+    def end_round(self, error = False) -> bool:
         if not self.playing:
             return False
         
+        self.roundError = error
+
         plainTable = [
             [
                 "" for _ in range(2 + self.currentPlayerCount)
@@ -161,6 +173,14 @@ class TexasRecord:
             for j in range(self.currentPlayerCount):
                 if self.table[i+1][j] != "-1":
                     plainTable[i+1][j+1] = str(self.table[i+1][j])
+
+        # Force Error Reset
+        if self.roundError:
+            plainTable[9][0] = "[ERROR] <<<错误>>>"
+        # Game Info
+        plainTable[6][0] = str(self.gameInfo["smallBlind"])
+        plainTable[7][0] = str(self.gameInfo["largeBlind"])
+        plainTable[8][0] = str(self.gameInfo["playerBottomBet"])
                     
         self.write_plain_table(plainTable)
         
@@ -168,6 +188,8 @@ class TexasRecord:
         self.table = []
         self.currentPlayerCount = 0
         self.lineIndex = 0
+        self.roundError = False
+        self.gameInfo = {"smallBlind": -1, "largeBlind": -1, "smallBlindIndex": -1, "largeBlindIndex": -1, "playerBottomBet": -1}
         
         return True
 
