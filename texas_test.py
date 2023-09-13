@@ -20,7 +20,7 @@ import texas_activated
 tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
-pixelDelta = 0
+pixelDelta = -5
 
 
 USER_NULL = -1
@@ -349,7 +349,7 @@ def player_bet_test(imgPath: str, playerSeat: int = 0) -> bool:
 
 
 if __name__ == "__main__":
-    imgPath = "./texas/empty_seat_unsuccessful.png"
+    imgPath = "./texas/remote_unsuccessful_fold_begin.png"
     # game_begin_test(imgPath)
     # bottom_bet_test(imgPath)
     # for i in range(5):

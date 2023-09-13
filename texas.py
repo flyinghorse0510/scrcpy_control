@@ -24,7 +24,7 @@ tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
 realTime = False
-videoSouce = "./texas/remote_texas.mp4"
+videoSouce = "./texas/new_remote_debug.mp4"
 DeltaPixel = -5
 
 
@@ -518,6 +518,9 @@ def frame_filter_process(frameQueue: Queue, infoQueue: Queue, chineseOcrQueue: Q
             if info["playerStatus"][i] != USER_EMPTY and info["playerStatus"][i] != USER_FOLD and info["playerStatus"][i] != USER_ALL_IN:
                 playerStatus = get_player_status(originalFrame.crop(PlayerStatusArray[i]), originalFrame.crop(EmptySeatArray[i]), globalBinarizedFrame.crop(PlayerStatusArray[i]))
                 info["playerStatus"][i] = playerStatus
+                # if i == 5 and info["playerStatus"][i] != USER_THINKING:
+                #     originalFrame.save("./tmp/original_%d.png" %(debugCount))
+                #     originalFrame.crop(PlayerStatusArray[i]).save("./tmp/player_status_%d.png" %(debugCount))
                 if playerStatus == USER_EMPTY or playerStatus == USER_FOLD:
                     continue
                         
@@ -799,6 +802,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 for i in range(len(playerList)):
                     if playerStatus[playerList[i]] == USER_THINKING:
                         currentPlayerIndex = i
+                        print("Next Round Player Confirmed: %d" %(i))
                 # Begin Next round
                 if currentPlayerIndex != -1:
                     currentGameRound += 1
@@ -808,17 +812,22 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                         index = i % len(playerList)
                         playerActionList.append(index)
                     # New Record Line
+                    print(playerActionList)
                     recordFile.new_record_line()
                     recordFile.new_record_line()
                     continue
                 break
             
-            
+            if playerActionList[0] == 1 and currentGameRound != 1:
+                print("%d %d %d(%d) %d" %(gameBeginActivated, bottomBetActivated, currentBottomBet, bottomBet, playerStatus[playerList[playerActionList[0]]]))
             # Operation Track
-            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
+            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet != -1:
                 status = playerStatus[playerList[playerActionList[0]]]
+                currentTotalBet = 0
+                for i in range(len(playerList)):
+                    currentTotalBet += playerBet[i] + gameInfo["playerBottomBet"]
+                effectBottomBet = min(bottomBet, currentTotalBet)
                 if status == USER_THINKING:
-                    bottomBet = currentBottomBet
                     if currentPlayerIndex != playerActionList[0]:
                         currentPlayerIndex = playerActionList[0]
                         print("[%s] Player %d(Thinking)" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0]))
@@ -827,7 +836,6 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     try: 
                         playerNoActionList.index(playerActionList[0])
                     except:
-                        bottomBet = currentBottomBet
                         playerNoActionList.append(playerActionList[0])
                         # Update Current Player Index
                         currentPlayerIndex = playerActionList[0]
@@ -845,12 +853,13 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     try:
                         playerNoActionList.index(playerActionList[0])
                     except:
-                        if currentBottomBet - bottomBet <= gameInfo["largeBlind"]:
+                        if currentBottomBet == effectBottomBet:
                             break
+
                         playerNoActionList.append(playerActionList[0])
 
                         # Update Bet
-                        playerBet[playerActionList[0]] += currentBottomBet - bottomBet
+                        playerBet[playerActionList[0]] += currentBottomBet - effectBottomBet
                         bottomBet = currentBottomBet
                         if playerBet[playerActionList[0]] - gameInfo["largeBlind"] >= playerExpectedBet:
                             # Update Player Action List
@@ -875,12 +884,12 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     print(playerActionList)
                     continue
                 elif (status == USER_ADD_BET) or (status == USER_C_BET) :
-                    if playerExpectedBet - playerBet[playerActionList[0]] > currentBottomBet - bottomBet + gameInfo["largeBlind"]:
+                    if playerExpectedBet - playerBet[playerActionList[0]] > currentBottomBet - effectBottomBet + gameInfo["largeBlind"]:
                         break
 
-                    print("Player %d(%s) ==> %d, %d" %(playerActionList[0], UserStatusStringArray[status], currentBottomBet, bottomBet))
+                    print("Player %d(%s) ==> %d, %d(%d)" %(playerActionList[0], UserStatusStringArray[status], currentBottomBet, bottomBet, effectBottomBet))
                     
-                    if currentBottomBet - bottomBet <= gameInfo["largeBlind"]:
+                    if currentBottomBet - effectBottomBet <= gameInfo["largeBlind"]:
                         # Record
                         betTimes = int(playerExpectedBet / gameInfo["largeBlind"])
                         print("[%s] Player %d C%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
@@ -890,7 +899,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                         bottomBet = currentBottomBet
                     else:
                         # C or B
-                        playerBet[playerActionList[0]] += currentBottomBet - bottomBet
+                        playerBet[playerActionList[0]] += currentBottomBet - effectBottomBet
                         bottomBet = currentBottomBet
                         
                         playerBetEqualTimes =  int(float(playerBet[playerActionList[0]]) / float(gameInfo["largeBlind"]) + 0.5)
@@ -962,12 +971,12 @@ def status_control_process(infoQueue: Queue, remoteQueue: Queue, remoteLock: Loc
             break
     print("Status Control process terminated!")
 
-frameQueue = Queue(maxsize=15)
-infoQueue = Queue(maxsize=15)
-remoteQueue = Queue(maxsize=5)
-chineseOcrQueue = Queue(maxsize=10)
-englishOcrQueue = Queue(maxsize=10)
-ocrResultQueue = Queue(maxsize=15)
+frameQueue = Queue(maxsize=60)
+infoQueue = Queue(maxsize=60)
+remoteQueue = Queue(maxsize=15)
+chineseOcrQueue = Queue(maxsize=20)
+englishOcrQueue = Queue(maxsize=20)
+ocrResultQueue = Queue(maxsize=30)
 
 remoteLock = Lock()
 

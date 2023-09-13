@@ -83,12 +83,18 @@ def game_begin_activated(img: Image.Image, saveImg: bool = False) -> bool:
     filteredImg = Image.fromarray(filteredCvImg)
     filteredImgArray = np.array(filteredImg)
 
+    binarizedGameBeginImg = utils.binarize_pillow(img, 130)
+    binarizedImgArray = np.array(binarizedGameBeginImg)
+
     if saveImg:
         filteredImg.save("./tmp/filtered_game_begin.png")
     
     weight = filteredImgArray.sum() / (255.0 * filteredImgArray.size)
-
+    distance = np.power((GameBeginRef - binarizedImgArray).flatten(), 2).sum()
+    # print(distance)
     if weight >= 0.08 and weight <= 0.27:
+        distance = np.power((GameBeginRef - binarizedImgArray).flatten(), 2).sum()
+        # print(distance)
         return True
 
     return False
