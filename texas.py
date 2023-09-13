@@ -24,7 +24,7 @@ tessPSM = PSM.SINGLE_LINE
 tessSingleCharacterPSM = PSM.SINGLE_CHAR
 tessL = "chi_sim"
 realTime = False
-videoSouce = "./texas/new_remote_debug.mp4"
+videoSouce = "./texas/new_remote_texas_001000_004200.mp4"
 DeltaPixel = -5
 
 
@@ -697,14 +697,12 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 continue
             break
         elif gameStatus == STATUS_WAIT_FOR_BEGIN:
+            
             # Normal Trace
-            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
+            if (not gameBeginActivated) and bottomBetActivated and currentBottomBet != -1:
                 # Bottom Bet Filter
                 bottomBet = FrameBottomBetFilter.update_support_line(currentBottomBet)
                 frameBottomBetFilterUpdated = True
-                if bottomBet <= 0:
-                    break
-                
                 # Find First Player
                 for i in range(9):
                     if playerStatus[i] == USER_THINKING:
@@ -718,7 +716,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     print("Basic Game Info Confirmed!  ", end="")
                     print(currentGameInfo)
                 
-                if originalPlayerIndex != -1 and valid_game_info(currentGameInfo) and bottomBet != -1:
+                if originalPlayerIndex != -1 and valid_game_info(currentGameInfo) and bottomBet > 0:
                     
                     for i in range(9):
                         if playerStatus[8-i] != USER_EMPTY and playerStatus[8-i] != USER_FOLD:
@@ -762,6 +760,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     print(playerActionList)
                     print("]")
                     gameStatus = STATUS_PLAYING
+                    FrameBottomBetFilter.access_support_point()
                     playerExpectedBet = gameInfo["largeBlind"]
                     currentGameRound = 1
                     # Create New Record
@@ -864,7 +863,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     try:
                         playerNoActionList.index(playerActionList[0])
                     except:
-                        if FrameBottomBetFilter.is_support_point_accessed() or FrameBottomBetFilter.get_support_point() == effectBottomBet:
+                        if FrameBottomBetFilter.get_support_point() - effectBottomBet <= 5 * gameInfo["largeBlind"] and FrameBottomBetFilter.is_support_point_accessed():
                             break
 
                         playerNoActionList.append(playerActionList[0])
@@ -897,7 +896,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     print(playerActionList)
                     continue
                 elif (status == USER_ADD_BET) or (status == USER_C_BET) :
-                    if playerExpectedBet - playerBet[playerActionList[0]] > FrameBottomBetFilter.get_support_point() - effectBottomBet + gameInfo["largeBlind"]:
+                    if playerExpectedBet - playerBet[playerActionList[0]] > FrameBottomBetFilter.get_support_point() - effectBottomBet + gameInfo["largeBlind"] or (FrameBottomBetFilter.is_support_point_accessed() and FrameBottomBetFilter.get_support_point() != currentBottomBet):
                         break
 
                     print("Player %d(%s) ==> %d, %d(%d)" %(playerActionList[0], UserStatusStringArray[status], FrameBottomBetFilter.get_support_point(), bottomBet, effectBottomBet))
@@ -928,7 +927,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                             if not recordFile.update_player_operation(playerActionList[0], "C%d" %(betTimes)):
                                 return False
                             FrameBottomBetFilter.access_support_point()
-                        elif not FrameBottomBetFilter.is_support_point_accessed():
+                        elif status == USER_ADD_BET and (playerBetEqualTimes - playerExpectedBetEqualTimes >= 6 or not FrameBottomBetFilter.is_support_point_accessed()):
                             # B
                             playerExpectedBet = playerBet[playerActionList[0]]
                             # Update Player Action List
