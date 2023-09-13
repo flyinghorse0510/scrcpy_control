@@ -2,7 +2,7 @@
 #define _SUPPORT_LINE_HPP
 #include <cstdio>
 
-
+#define MAX_BET_INCREMENT (50000000)
 
 class SupportLine
 {
@@ -15,7 +15,9 @@ public:
     long long _minConfirmCount;
     long long _increMinConfirmCount;
     long long _lastPoint;
-    SupportLine(long long minConfirmCount = 8)
+    long long _maxBetIncrement;
+    bool _supportPointAccessed;
+    SupportLine(long long minConfirmCount = 8, long long maxBetIncrement = MAX_BET_INCREMENT)
     {
         _primaryBufferPoint = 0;
         _primaryBufferCount = 0;
@@ -25,6 +27,8 @@ public:
         _minConfirmCount = minConfirmCount;
         _increMinConfirmCount = (minConfirmCount + 1) / 2;
         _lastPoint = 0;
+        _maxBetIncrement = maxBetIncrement;
+        _supportPointAccessed = false;
     }
 
     void reset_support_line(void)
@@ -35,6 +39,7 @@ public:
         _auxiliaryBufferCount = 0;
         _supportPoint = 0;
         _lastPoint = 0;
+        _supportPointAccessed = false;
     }
 
     long long update_support_line(long long measurePoint)
@@ -49,7 +54,7 @@ public:
             return _supportPoint;
         }
 
-        if (measurePoint - _supportPoint >= 50000000) {
+        if (measurePoint - _supportPoint >= _maxBetIncrement) {
             return _supportPoint;
         }
 
@@ -89,6 +94,7 @@ public:
             _primaryBufferCount++;
             if (_primaryBufferCount >= _minConfirmCount) {
                 _supportPoint = _primaryBufferPoint;
+                _supportPointAccessed = false;
                 _primaryBufferPoint = _auxiliaryBufferPoint;
                 _primaryBufferCount = _auxiliaryBufferCount;
                 _auxiliaryBufferPoint = 0;
@@ -98,6 +104,7 @@ public:
             if (_primaryBufferCount >= _increMinConfirmCount) {
                 if (_auxiliaryBufferCount >= _increMinConfirmCount) {
                     _supportPoint = _primaryBufferPoint;
+                    _supportPointAccessed = false;
                     _primaryBufferPoint = _auxiliaryBufferPoint;
                     _primaryBufferCount = _auxiliaryBufferCount;
                     _auxiliaryBufferPoint = 0;
@@ -136,6 +143,7 @@ public:
             _auxiliaryBufferCount++;
             if (_auxiliaryBufferCount >= _minConfirmCount) {
                 _supportPoint = _auxiliaryBufferPoint;
+                _supportPointAccessed = false;
                 _primaryBufferPoint = 0;
                 _primaryBufferCount = 0;
                 _auxiliaryBufferPoint = 0;
@@ -145,6 +153,7 @@ public:
             if (_auxiliaryBufferCount >= _increMinConfirmCount) {
                 if (_primaryBufferCount >= _increMinConfirmCount) {
                     _supportPoint = _primaryBufferPoint;
+                    _supportPointAccessed = false;
                     _primaryBufferPoint = _auxiliaryBufferPoint;
                     _primaryBufferCount = _auxiliaryBufferCount + 1;
                     _auxiliaryBufferPoint = 0;
@@ -172,6 +181,14 @@ public:
 
     long long update_with_last_point(void) {
         return this->update_support_line(_lastPoint);
+    }
+
+    bool is_support_point_accessed(void) {
+        return _supportPointAccessed;
+    }
+
+    void access_support_point(void) {
+        _supportPointAccessed = true;
     }
 };
 

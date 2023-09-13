@@ -1,8 +1,8 @@
 
-using namespace std;
+
 #include <assert.h>
 #include <SDL2/SDL_keycode.h>
-
+using namespace std;
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

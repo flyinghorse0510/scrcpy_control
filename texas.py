@@ -36,7 +36,7 @@ USER_EMPTY = 3
 USER_ADD_BET = 4
 USER_C_BET = 5
 
-BET_CONFIRM_COUNT = 5
+BET_CONFIRM_COUNT = 4
 RANK_CONFIRM_COUNT = 2
 
 CARD_RANK_UNKNOWN = -1
@@ -66,7 +66,7 @@ STATUS_NULL = -1
 NUM_ENGLISH_OCR_PROC = 5
 NUM_CHINESE_OCR_PROC = 2
 
-FrameBottomBetFilter = sline.SupportLine(BET_CONFIRM_COUNT)
+FrameBottomBetFilter = sline.SupportLine(BET_CONFIRM_COUNT, 1000000000000)
 
 BottomBetArea = (1084, 300, 1440, 340)
 GameBeginArea = (1106, 484, 1430, 532)
@@ -685,6 +685,7 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
     currentBottomBet = infoDict["currentBottomBet"]
     currentGameInfo = infoDict["gameInfo"]
     originalPlayerIndex = -1
+    frameBottomBetFilterUpdated = False
     while True:
         if gameStatus == STATUS_NULL:
             # print("[%s] %d %d %d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), gameBeginActivated, bottomBetActivated, currentBottomBet))
@@ -696,10 +697,13 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                 continue
             break
         elif gameStatus == STATUS_WAIT_FOR_BEGIN:
-
             # Normal Trace
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet >= bottomBet and currentBottomBet != -1:
+                # Bottom Bet Filter
                 bottomBet = FrameBottomBetFilter.update_support_line(currentBottomBet)
+                frameBottomBetFilterUpdated = True
+                if bottomBet <= 0:
+                    break
                 
                 # Find First Player
                 for i in range(9):
@@ -768,6 +772,12 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
             break
         
         elif gameStatus == STATUS_PLAYING:
+
+            # Update filter
+            if bottomBetActivated and not frameBottomBetFilterUpdated:
+                FrameBottomBetFilter.update_support_line(currentBottomBet)
+                frameBottomBetFilterUpdated = True
+
             # Force Reset
             if gameBeginActivated and not bottomBetActivated:
                 # Update Player Card
@@ -818,8 +828,9 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     continue
                 break
             
-            if playerActionList[0] == 1 and currentGameRound != 1:
-                print("%d %d %d(%d) %d" %(gameBeginActivated, bottomBetActivated, currentBottomBet, bottomBet, playerStatus[playerList[playerActionList[0]]]))
+            # if playerActionList[0] == 1 and currentGameRound != 1:
+            #     print("%d %d %d(%d) %d" %(gameBeginActivated, bottomBetActivated, currentBottomBet, bottomBet, playerStatus[playerList[playerActionList[0]]]))
+
             # Operation Track
             if (not gameBeginActivated) and bottomBetActivated and currentBottomBet != -1:
                 status = playerStatus[playerList[playerActionList[0]]]
@@ -853,14 +864,16 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     try:
                         playerNoActionList.index(playerActionList[0])
                     except:
-                        if currentBottomBet == effectBottomBet:
+                        if FrameBottomBetFilter.is_support_point_accessed() or FrameBottomBetFilter.get_support_point() == effectBottomBet:
                             break
 
                         playerNoActionList.append(playerActionList[0])
 
                         # Update Bet
-                        playerBet[playerActionList[0]] += currentBottomBet - effectBottomBet
-                        bottomBet = currentBottomBet
+                        FrameBottomBetFilter.access_support_point()
+                        playerBet[playerActionList[0]] += FrameBottomBetFilter.get_support_point() - effectBottomBet
+                        bottomBet = FrameBottomBetFilter.get_support_point()
+                        
                         if playerBet[playerActionList[0]] - gameInfo["largeBlind"] >= playerExpectedBet:
                             # Update Player Action List
                             lastPlayer = playerActionList[-1]
@@ -884,28 +897,29 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                     print(playerActionList)
                     continue
                 elif (status == USER_ADD_BET) or (status == USER_C_BET) :
-                    if playerExpectedBet - playerBet[playerActionList[0]] > currentBottomBet - effectBottomBet + gameInfo["largeBlind"]:
+                    if playerExpectedBet - playerBet[playerActionList[0]] > FrameBottomBetFilter.get_support_point() - effectBottomBet + gameInfo["largeBlind"]:
                         break
 
-                    print("Player %d(%s) ==> %d, %d(%d)" %(playerActionList[0], UserStatusStringArray[status], currentBottomBet, bottomBet, effectBottomBet))
+                    print("Player %d(%s) ==> %d, %d(%d)" %(playerActionList[0], UserStatusStringArray[status], FrameBottomBetFilter.get_support_point(), bottomBet, effectBottomBet))
                     
-                    if currentBottomBet - effectBottomBet <= gameInfo["largeBlind"]:
+                    if (not FrameBottomBetFilter.is_support_point_accessed()) and FrameBottomBetFilter.get_support_point() - effectBottomBet <= gameInfo["largeBlind"]:
                         # Record
                         betTimes = int(playerExpectedBet / gameInfo["largeBlind"])
                         print("[%s] Player %d C%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
                         if not recordFile.update_player_operation(playerActionList[0], "C%d" %(betTimes)):
                             return False
                         playerBet[playerActionList[0]] = playerExpectedBet
-                        bottomBet = currentBottomBet
+                        bottomBet = FrameBottomBetFilter.get_support_point()
+                        FrameBottomBetFilter.access_support_point()
                     else:
                         # C or B
-                        playerBet[playerActionList[0]] += currentBottomBet - effectBottomBet
-                        bottomBet = currentBottomBet
+                        playerBet[playerActionList[0]] += FrameBottomBetFilter.get_support_point() - effectBottomBet
+                        bottomBet = FrameBottomBetFilter.get_support_point()
                         
-                        playerBetEqualTimes =  int(float(playerBet[playerActionList[0]]) / float(gameInfo["largeBlind"]) + 0.5)
+                        playerBetEqualTimes = int(float(playerBet[playerActionList[0]]) / float(gameInfo["largeBlind"]) + 0.5)
                         playerExpectedBetEqualTimes = int(float(playerExpectedBet) / float(gameInfo["largeBlind"]) + 0.5)
 
-                        if ((playerBet[playerActionList[0]] - playerExpectedBet <= gameInfo["largeBlind"]) or (playerExpectedBetEqualTimes == playerBetEqualTimes) or (status == USER_C_BET)) and (status != USER_ADD_BET):
+                        if ((((playerBet[playerActionList[0]] - playerExpectedBet <= gameInfo["largeBlind"]) or (playerExpectedBetEqualTimes == playerBetEqualTimes)) and (not FrameBottomBetFilter.is_support_point_accessed())) or (status == USER_C_BET)) and (status != USER_ADD_BET):
                             # C
                             playerBet[playerActionList[0]] = playerExpectedBet
                             # Record
@@ -913,7 +927,8 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                             print("[%s] Player %d C%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
                             if not recordFile.update_player_operation(playerActionList[0], "C%d" %(betTimes)):
                                 return False
-                        else:
+                            FrameBottomBetFilter.access_support_point()
+                        elif not FrameBottomBetFilter.is_support_point_accessed():
                             # B
                             playerExpectedBet = playerBet[playerActionList[0]]
                             # Update Player Action List
@@ -925,6 +940,9 @@ def process_frame(infoDict: dict, recordFile: texas_record.TexasRecord, remoteQu
                             print("[%s] Player %d B%d" %(time.strftime('%Y-%m-%d %H:%M:%S', time.localtime()), playerActionList[0], betTimes))
                             if not recordFile.update_player_operation(playerActionList[0], "B%d" %(betTimes)):
                                 return False
+                            FrameBottomBetFilter.access_support_point()
+                        else:
+                            break
                     print(playerBet)
                     # Update Current Player Index
                     currentPlayerIndex = playerActionList[0]
@@ -980,33 +998,33 @@ ocrResultQueue = Queue(maxsize=30)
 
 remoteLock = Lock()
 
+if __name__ == "__main__":
+
+    chineseOcrProcessPool = []
+    for i in range(NUM_CHINESE_OCR_PROC):
+        chineseOcrProcessPool.append(Process(target=chinese_ocr_process, args=(chineseOcrQueue, ocrResultQueue)))
+        chineseOcrProcessPool[i].start()
+    print("Successfully start chinese ocr process (%d in total)!" %(NUM_CHINESE_OCR_PROC))
+
+    englishOcrProcessPool = []
+    for i in range(NUM_ENGLISH_OCR_PROC):
+        englishOcrProcessPool.append(Process(target=english_ocr_process, args=(englishOcrQueue, ocrResultQueue)))
+        englishOcrProcessPool[i].start()
+    print("Successfully start english ocr process (%d in total)!" %(NUM_ENGLISH_OCR_PROC))
 
 
-chineseOcrProcessPool = []
-for i in range(NUM_CHINESE_OCR_PROC):
-    chineseOcrProcessPool.append(Process(target=chinese_ocr_process, args=(chineseOcrQueue, ocrResultQueue)))
-    chineseOcrProcessPool[i].start()
-print("Successfully start chinese ocr process (%d in total)!" %(NUM_CHINESE_OCR_PROC))
+    frameFilterProcess = Process(target=frame_filter_process, args=(frameQueue, infoQueue, chineseOcrQueue, englishOcrQueue, ocrResultQueue))
+    frameFilterProcess.start()
 
-englishOcrProcessPool = []
-for i in range(NUM_ENGLISH_OCR_PROC):
-    englishOcrProcessPool.append(Process(target=english_ocr_process, args=(englishOcrQueue, ocrResultQueue)))
-    englishOcrProcessPool[i].start()
-print("Successfully start english ocr process (%d in total)!" %(NUM_ENGLISH_OCR_PROC))
+    statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteLock, realTime))
+    statusControlProcess.start()
 
+    # remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteLock))
+    # remoteControlProcess.start()
 
-frameFilterProcess = Process(target=frame_filter_process, args=(frameQueue, infoQueue, chineseOcrQueue, englishOcrQueue, ocrResultQueue))
-frameFilterProcess.start()
-
-statusControlProcess = Process(target=status_control_process, args=(infoQueue, remoteQueue, remoteLock, realTime))
-statusControlProcess.start()
-
-# remoteControlProcess = Process(target=remote_control_process, args=(remoteQueue, remoteLock))
-# remoteControlProcess.start()
-
-frameSourceProcess = Process(target=frame_source_process, args=(frameQueue, videoSouce, realTime))
-frameSourceProcess.start()
+    frameSourceProcess = Process(target=frame_source_process, args=(frameQueue, videoSouce, realTime))
+    frameSourceProcess.start()
 
 
-while True:
-    time.sleep(1)
+    while True:
+        time.sleep(1)
