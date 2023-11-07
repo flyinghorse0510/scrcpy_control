@@ -181,8 +181,8 @@ class TexasRecord:
         plainTable[6][0] = str(self.gameInfo["smallBlind"])
         plainTable[7][0] = str(self.gameInfo["largeBlind"])
         plainTable[8][0] = str(self.gameInfo["playerBottomBet"])
-                    
-        self.write_plain_table(plainTable)
+        if not self.roundError:
+            self.write_plain_table(plainTable)
         
         self.playing = False
         self.table = []
